@@ -1,85 +1,135 @@
-# src/adapters/base_adapter.py
+# adapters/base_adapter.py
 """
-Базовый интерфейс для всех адаптеров Демпстера-Шейфера
+Базовый абстрактный класс адаптера для теории Демпстера-Шейфера.
+Определяет единый интерфейс для всех реализаций.
+Только абстрактные методы - без реализации.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Tuple
+from typing import Dict, List, Any, Union
 
 
 class BaseDempsterShaferAdapter(ABC):
-    """Базовый класс адаптера для всех реализаций"""
+    """
+    Абстрактный базовый класс для адаптеров теории Демпстера-Шейфера.
+    
+    Все конкретные адаптеры должны наследоваться от этого класса
+    и реализовывать все абстрактные методы.
+    """
+    
+    # ==================== ИНИЦИАЛИЗАЦИЯ И ЗАГРУЗКА ====================
     
     @abstractmethod
     def load_from_dass(self, dass_data: Dict[str, Any]) -> Any:
         """
-        Загружает данные из DASS формата
+        Загружает данные из DASS формата в объект библиотеки.
         
         Args:
-            dass_data: данные в формате DASS
+            dass_data: Словарь с данными в формате DASS
             
         Returns:
-            Подготовленные данные в формате библиотеки
+            Объект библиотеки с загруженными данными
         """
         pass
     
     @abstractmethod
-    def combine_all_dempster(self, data: Any) -> Dict:
+    def get_frame_of_discernment(self, data: Any) -> List[str]:
         """
-        Комбинирует все источники по правилу Демпстера
+        Возвращает элементы фрейма различения.
         
         Args:
-            data: подготовленные данные
+            data: Объект с загруженными данными
             
         Returns:
-            Результирующее BPA
+            Список элементов фрейма
         """
         pass
     
     @abstractmethod
-    def combine_dempster_pair(self, bpa1: Dict, bpa2: Dict) -> Dict:
+    def get_sources_count(self, data: Any) -> int:
         """
-        Комбинирует два BPA по правилу Демпстера
+        Возвращает количество источников (BPA).
         
         Args:
-            bpa1: первое BPA
-            bpa2: второе BPA
+            data: Объект с загруженными данными
             
         Returns:
-            Результирующее BPA
+            Количество источников
+        """
+        pass
+    
+    # ==================== ОСНОВНЫЕ ФУНКЦИИ ====================
+    
+    @abstractmethod
+    def calculate_belief(self, data: Any, event: Union[str, List[str]]) -> float:
+        """
+        Вычисляет функцию доверия Bel(A) для события.
+        
+        Args:
+            data: Объект с загруженными данными
+            event: Событие в виде строки "{A,B}" или списка ["A", "B"]
+            
+        Returns:
+            Значение Belief (0..1)
         """
         pass
     
     @abstractmethod
-    def validate_bpa(self, bpa: Dict) -> Tuple[bool, float]:
+    def calculate_plausibility(self, data: Any, event: Union[str, List[str]]) -> float:
         """
-        Проверяет корректность BPA
+        Вычисляет функцию правдоподобия Pl(A) для события.
         
         Args:
-            bpa: BPA для проверки
+            data: Объект с загруженными данными
+            event: Событие в виде строки "{A,B}" или списка ["A", "B"]
             
         Returns:
-            (валидно ли, сумма масс)
+            Значение Plausibility (0..1)
         """
         pass
     
-    def combine_all_yager(self, data: Any) -> Dict:
-        """
-        Комбинирует все источники по правилу Ягера
-        (опционально)
-        """
-        raise NotImplementedError("Метод combine_all_yager не реализован")
+    # ==================== КОМБИНИРОВАНИЕ ДЕМПСТЕРА ====================
     
-    def compute_belief(self, data: Any, event_str: str) -> float:
+    @abstractmethod
+    def combine_sources_dempster(self, data: Any) -> Dict[str, float]:
         """
-        Вычисляет Belief для события
-        (опционально)
+        Комбинирует все источники по правилу Демпстера.
+        
+        Args:
+            data: Объект с загруженными данными (несколько источников)
+            
+        Returns:
+            Словарь BPA после комбинирования: подмножество (строка) -> масса
         """
-        raise NotImplementedError("Метод compute_belief не реализован")
+        pass
     
-    def compute_plausibility(self, data: Any, event_str: str) -> float:
+    # ==================== ДИСКОНТИРОВАНИЕ ====================
+    
+    @abstractmethod
+    def apply_discounting(self, data: Any, alpha: float) -> List[Dict[str, float]]:
         """
-        Вычисляет Plausibility для события
-        (опционально)
+        Применяет дисконтирование ко всем источникам.
+        
+        Args:
+            data: Объект с загруженными данными
+            alpha: Коэффициент дисконтирования (0..1)
+            
+        Returns:
+            Список словарей BPA после дисконтирования для каждого источника
         """
-        raise NotImplementedError("Метод compute_plausibility не реализован")
+        pass
+    
+    # ==================== КОМБИНИРОВАНИЕ ЯГЕРА ====================
+    
+    @abstractmethod
+    def combine_sources_yager(self, data: Any) -> Dict[str, float]:
+        """
+        Комбинирует все источники по правилу Ягера.
+        
+        Args:
+            data: Объект с загруженными данными (несколько источников)
+            
+        Returns:
+            Словарь BPA после комбинирования: подмножество (строка) -> масса
+        """
+        pass

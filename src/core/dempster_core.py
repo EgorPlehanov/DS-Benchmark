@@ -9,11 +9,10 @@ class DempsterShafer:
     
     def __init__(self, frame_of_discernment: Set[str]):
         self.frame = frame_of_discernment
-        self.all_subsets = self._generate_all_subsets()
-    
-    def _generate_all_subsets(self) -> List[FrozenSet]:
+
+    @staticmethod    
+    def _generate_all_subsets(elements: List[str]) -> List[FrozenSet]:
         """Генерирует все подмножества фрейма"""
-        elements = list(self.frame)
         subsets = []
         for r in range(len(elements) + 1):
             for combo in itertools.combinations(elements, r):

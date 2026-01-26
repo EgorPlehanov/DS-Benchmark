@@ -1,14 +1,19 @@
+# src/generators/validator.py
 """
 Валидатор DASS файлов
-Проверяет корректность входных данных
+Проверяет корректность входных данных с высокой точностью
 """
 
 import json
+import math
 from typing import Dict, List, Any, Tuple
 import re
 
 class DassValidator:
     """Валидатор формата DASS"""
+    
+    # Точность проверки суммы масс
+    MASS_TOLERANCE = 1e-8  # Высокая точность!
     
     @staticmethod
     def validate_file(filepath: str) -> Tuple[bool, List[str]]:
@@ -79,9 +84,12 @@ class DassValidator:
             errors.append(f"Источник {index}: bba должен быть словарем")
             return errors
         
+        # Проверяем, что BPA не пустой
+        if len(bba) == 0:
+            errors.append(f"Источник {index}: bba пустой")
+        
         # Проверяем корректность множеств и масс
         total_mass = 0.0
-        valid_subsets = []
         
         for subset_str, mass in bba.items():
             # Проверяем массу
@@ -89,8 +97,15 @@ class DassValidator:
                 errors.append(f"Источник {index}: масса для '{subset_str}' должна быть числом")
                 continue
             
-            if mass < 0 or mass > 1:
-                errors.append(f"Источник {index}: масса для '{subset_str}' должна быть между 0 и 1")
+            if math.isnan(mass) or math.isinf(mass):
+                errors.append(f"Источник {index}: масса для '{subset_str}' некорректная (NaN или Inf)")
+                continue
+            
+            if mass < 0:
+                errors.append(f"Источник {index}: масса для '{subset_str}' отрицательная: {mass}")
+            
+            if mass > 1.0 + DassValidator.MASS_TOLERANCE:
+                errors.append(f"Источник {index}: масса для '{subset_str}' > 1: {mass}")
             
             total_mass += mass
             
@@ -117,13 +132,11 @@ class DassValidator:
                                 f"Источник {index}: элемент '{elem}' из '{subset_str}' "
                                 f"отсутствует во фрейме"
                             )
-            
-            valid_subsets.append(subset)
         
-        # Проверяем сумму масс (допускаем небольшую погрешность)
-        if abs(total_mass - 1.0) > 0.001:
+        # Проверяем сумму масс с высокой точностью
+        if abs(total_mass - 1.0) > DassValidator.MASS_TOLERANCE:
             errors.append(
-                f"Источник {index}: сумма масс = {total_mass:.4f}, должна быть 1.0 ±0.001"
+                f"Источник {index}: сумма масс = {total_mass:.10f}, должна быть 1.0 ±{DassValidator.MASS_TOLERANCE}"
             )
         
         return errors
@@ -146,3 +159,38 @@ class DassValidator:
             return "{}"
         sorted_elements = sorted(subset)
         return "{" + ",".join(sorted_elements) + "}"
+    
+    @staticmethod
+    def normalize_bba(bba: Dict[str, float]) -> Dict[str, float]:
+        """
+        Нормализует BPA так, чтобы сумма масс была точно 1.0.
+        
+        Args:
+            bba: BPA для нормализации
+            
+        Returns:
+            Нормализованный BPA
+        """
+        if not bba:
+            return bba
+        
+        total = sum(bba.values())
+        
+        if abs(total - 1.0) < DassValidator.MASS_TOLERANCE:
+            return bba
+        
+        # Нормализуем
+        normalized = {}
+        for subset, mass in bba.items():
+            normalized[subset] = mass / total
+        
+        # Дополнительная проверка
+        new_total = sum(normalized.values())
+        if abs(new_total - 1.0) > 1e-12:
+            # Корректируем последнюю массу
+            items = list(normalized.items())
+            last_key, last_value = items[-1]
+            correction = 1.0 - (new_total - last_value)
+            normalized[last_key] = correction
+        
+        return normalized

@@ -1,191 +1,261 @@
-# src/adapters/our_adapter.py
+# adapters/our_adapter.py
 """
-Адаптер для нашей реализации Демпстера-Шейфера
-Реализует интерфейс BaseDempsterShaferAdapter
+Адаптер для нашей реализации Демпстера-Шейфера (dempster_core.py)
+Stateless реализация - не хранит состояние.
 """
 
-import json
-from typing import Dict, List, Any, Tuple, Set
+from typing import Dict, List, Any, Union, Set
 from .base_adapter import BaseDempsterShaferAdapter
+
+# Импортируем нашу реализацию
 from ..core.dempster_core import DempsterShafer
 
 
 class OurImplementationAdapter(BaseDempsterShaferAdapter):
-    """Адаптер для нашей реализации - реализует общий интерфейс"""
+    """
+    Stateless адаптер для нашей реализации.
+    Не хранит состояние между вызовами.
+    """
     
     def __init__(self):
-        self.ds = None  # Инициализируется после загрузки данных
-        
+        """Инициализация адаптера (без состояния)."""
+        pass
+    
     def load_from_dass(self, dass_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Загружает данные из DASS формата в нашу структуру
-        
-        Args:
-            dass_data: данные в формате DASS
-            
-        Returns:
-            Словарь с подготовленными данными
+        Загружает данные из DASS формата.
+        Возвращает словарь с конвертированными данными.
         """
         # Извлекаем фрейм
         frame_elements = dass_data["frame_of_discernment"]
         frame = set(frame_elements)
         
-        # Инициализируем нашу реализацию
-        self.ds = DempsterShafer(frame)
-        
-        # Преобразуем BPA из DASS формата в наш формат
+        # Конвертируем BPA из DASS формата в наш формат
         bpas = []
         for source in dass_data["bba_sources"]:
             bpa_dict = {}
             for subset_str, mass in source["bba"].items():
-                # Конвертируем "{A,B}" -> frozenset(["A", "B"])
                 subset = self._parse_subset_str(subset_str)
                 bpa_dict[subset] = mass
             bpas.append(bpa_dict)
         
         return {
-            "frame": frame,
-            "bpas": bpas,
-            "metadata": dass_data.get("metadata", {}),
-            "original_data": dass_data
+            'frame': frame,
+            'frame_elements': frame_elements,
+            'bpas': bpas,
+            'original_dass': dass_data  # Сохраняем оригинал на всякий случай
         }
     
-    def combine_all_dempster(self, data: Dict[str, Any]) -> Dict[frozenset, float]:
-        """
-        Комбинирует все источники по правилу Демпстера
-        """
-        if not self.ds:
-            raise ValueError("Данные не загружены. Сначала вызовите load_from_dass()")
-        
-        bpas = data["bpas"]
-        
-        if len(bpas) == 0:
-            return {}
-        elif len(bpas) == 1:
-            return bpas[0]
-        
-        # Комбинируем все BPA последовательно
-        result = bpas[0]
-        for bpa in bpas[1:]:
-            result = self.ds.dempster_combine(result, bpa)
-        
-        return result
+    def get_frame_of_discernment(self, data: Any) -> List[str]:
+        """Возвращает элементы фрейма различения."""
+        if isinstance(data, dict) and 'frame_elements' in data:
+            return data['frame_elements']
+        return []
     
-    def combine_dempster_pair(self, bpa1: Dict[frozenset, float], 
-                            bpa2: Dict[frozenset, float]) -> Dict[frozenset, float]:
-        """
-        Комбинирует два BPA по правилу Демпстера
-        """
-        if not self.ds:
-            raise ValueError("Демпстер-Шейфер не инициализирован")
-        
-        return self.ds.dempster_combine(bpa1, bpa2)
+    def get_sources_count(self, data: Any) -> int:
+        """Возвращает количество источников."""
+        if isinstance(data, dict) and 'bpas' in data:
+            return len(data['bpas'])
+        return 0
     
-    def validate_bpa(self, bpa: Dict[frozenset, float]) -> Tuple[bool, float]:
+    def calculate_belief(self, data: Any, event: Union[str, List[str]]) -> float:
         """
-        Проверяет корректность BPA: сумма масс должна быть 1
+        Вычисляет функцию доверия Bel(A) для события.
         
+        Args:
+            data: Должен содержать 'frame' и 'bpa' 
+                 или быть BPA напрямую
+            event: Событие
+            
         Returns:
-            (валидно ли, сумма масс)
+            Значение Belief
         """
-        total = sum(bpa.values())
-        return (abs(total - 1.0) < 1e-10, total)
-    
-    # ДОПОЛНИТЕЛЬНЫЕ МЕТОДЫ (не обязательные для интерфейса, но полезные)
-    
-    def combine_all_yager(self, data: Dict[str, Any]) -> Dict[frozenset, float]:
-        """
-        Комбинирует все источники по правилу Ягера
-        (опциональный метод)
-        """
-        if not self.ds:
-            raise ValueError("Данные не загружены. Сначала вызовите load_from_dass()")
+        # Получаем BPA из data
+        bpa = self._extract_bpa_from_data(data)
         
-        bpas = data["bpas"]
+        # Создаем экземпляр DempsterShafer
+        frame = self._extract_frame_from_data(data)
+        ds = DempsterShafer(frame)
         
-        if len(bpas) == 0:
+        # Парсим событие
+        event_set = self._parse_event(event)
+        
+        # Вычисляем Belief
+        return ds.belief(event_set, bpa)
+    
+    def calculate_plausibility(self, data: Any, event: Union[str, List[str]]) -> float:
+        """
+        Вычисляет функцию правдоподобия Pl(A) для события.
+        """
+        # Получаем BPA из data
+        bpa = self._extract_bpa_from_data(data)
+        
+        # Создаем экземпляр DempsterShafer
+        frame = self._extract_frame_from_data(data)
+        ds = DempsterShafer(frame)
+        
+        # Парсим событие
+        event_set = self._parse_event(event)
+        
+        # Вычисляем Plausibility
+        return ds.plausibility(event_set, bpa)
+    
+    def combine_sources_dempster(self, data: Any) -> Dict[str, float]:
+        """
+        Комбинирует все источники по правилу Демпстера.
+        
+        Args:
+            data: Должен содержать 'frame' и 'bpas'
+            
+        Returns:
+            BPA после комбинирования в строковом формате
+        """
+        # Извлекаем данные
+        frame = self._extract_frame_from_data(data)
+        bpas = self._extract_bpas_from_data(data)
+        
+        if not bpas:
             return {}
-        elif len(bpas) == 1:
-            return bpas[0]
         
-        result = bpas[0]
-        for bpa in bpas[1:]:
-            result = self.ds.yager_combine(result, bpa)
+        # Создаем экземпляр DempsterShafer
+        ds = DempsterShafer(frame)
         
-        return result
+        # Комбинируем все BPA
+        if len(bpas) == 1:
+            result = bpas[0]
+        else:
+            result = bpas[0]
+            for bpa in bpas[1:]:
+                result = ds.dempster_combine(result, bpa)
+        
+        # Конвертируем в строковый формат
+        return self._format_bpa(result)
     
-    def compute_belief(self, data: Dict[str, Any], event_str: str) -> float:
+    def apply_discounting(self, data: Any, alpha: float) -> List[Dict[str, float]]:
         """
-        Вычисляет Belief для события
+        Применяет дисконтирование ко всем источникам.
+        
+        Args:
+            data: Должен содержать 'frame' и 'bpas'
+            alpha: Коэффициент дисконтирования
+            
+        Returns:
+            Список BPA после дисконтирования в строковом формате
         """
-        if not self.ds:
-            raise ValueError("Данные не загружены. Сначала вызовите load_from_dass()")
+        # Извлекаем данные
+        frame = self._extract_frame_from_data(data)
+        bpas = self._extract_bpas_from_data(data)
         
-        event = self._parse_subset_str(event_str)
-        bpa = self.combine_all_dempster(data)
+        # Создаем экземпляр DempsterShafer
+        ds = DempsterShafer(frame)
         
-        return self.ds.belief(set(event), bpa)
+        # Применяем дисконтирование к каждому BPA
+        discounted_bpas = []
+        for bpa in bpas:
+            discounted = ds.discount(bpa, alpha)
+            discounted_bpas.append(self._format_bpa(discounted))
+        
+        return discounted_bpas
     
-    def compute_plausibility(self, data: Dict[str, Any], event_str: str) -> float:
+    def combine_sources_yager(self, data: Any) -> Dict[str, float]:
         """
-        Вычисляет Plausibility для события
+        Комбинирует все источники по правилу Ягера.
+        
+        Args:
+            data: Должен содержать 'frame' и 'bpas'
+            
+        Returns:
+            BPA после комбинирования в строковом формате
         """
-        if not self.ds:
-            raise ValueError("Данные не загружены. Сначала вызовите load_from_dass()")
+        # Извлекаем данные
+        frame = self._extract_frame_from_data(data)
+        bpas = self._extract_bpas_from_data(data)
         
-        event = self._parse_subset_str(event_str)
-        bpa = self.combine_all_dempster(data)
+        if not bpas:
+            return {}
         
-        return self.ds.plausibility(set(event), bpa)
+        # Создаем экземпляр DempsterShafer
+        ds = DempsterShafer(frame)
+        
+        # Комбинируем все BPA
+        if len(bpas) == 1:
+            result = bpas[0]
+        else:
+            result = bpas[0]
+            for bpa in bpas[1:]:
+                result = ds.yager_combine(result, bpa)
+        
+        # Конвертируем в строковый формат
+        return self._format_bpa(result)
     
-    # ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
+    # ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ====================
+    
+    def _extract_frame_from_data(self, data: Any) -> Set[str]:
+        """Извлекает фрейм из данных."""
+        if isinstance(data, dict) and 'frame' in data:
+            return data['frame']
+        # Если data это BPA напрямую, пытаемся извлечь элементы
+        elif isinstance(data, dict):
+            # Это может быть BPA {frozenset: float}
+            elements = set()
+            for subset in data.keys():
+                if isinstance(subset, frozenset):
+                    elements.update(subset)
+            return elements
+        return set()
+    
+    def _extract_bpa_from_data(self, data: Any) -> Dict:
+        """Извлекает BPA из данных."""
+        # Если data это BPA напрямую
+        if isinstance(data, dict):
+            # Проверяем, похоже ли на BPA {frozenset: float}
+            if data and isinstance(next(iter(data.keys())), frozenset):
+                return data
+            # Или data содержит 'bpa'
+            elif 'bpa' in data:
+                return data['bpa']
+            # Или это первый BPA из списка
+            elif 'bpas' in data and data['bpas']:
+                return data['bpas'][0]
+        return {}
+    
+    def _extract_bpas_from_data(self, data: Any) -> List[Dict]:
+        """Извлекает список BPA из данных."""
+        if isinstance(data, dict) and 'bpas' in data:
+            return data['bpas']
+        return []
+    
+    def _parse_event(self, event: Union[str, List[str]]) -> set:
+        """Парсит событие в множество."""
+        if isinstance(event, str):
+            return self._parse_subset_str(event)
+        elif isinstance(event, list):
+            return set(event)
+        else:
+            raise TypeError(f"Не поддерживаемый тип события: {type(event)}")
     
     def _parse_subset_str(self, subset_str: str) -> frozenset:
-        """Парсит строку множества в frozenset"""
+        """Парсит строку множества в frozenset."""
         if subset_str == "{}":
             return frozenset()
         
-        elements_str = subset_str.strip("{}")
-        if not elements_str:
+        elements = subset_str.strip("{}").split(",")
+        if elements == ['']:
             return frozenset()
         
-        elements = elements_str.split(",")
         return frozenset(elements)
     
-    def format_subset(self, subset: frozenset) -> str:
-        """Форматирует frozenset в строку множества"""
+    def _format_subset(self, subset) -> str:
+        """Форматирует множество в строку."""
         if not subset:
             return "{}"
         
-        sorted_elements = sorted(subset)
-        return "{" + ",".join(sorted_elements) + "}"
+        return "{" + ",".join(sorted(subset)) + "}"
     
-    def format_result(self, result: Dict[frozenset, float]) -> Dict[str, float]:
-        """Форматирует результат для сохранения в JSON"""
+    def _format_bpa(self, bpa: Dict) -> Dict[str, float]:
+        """Конвертирует BPA в строковый формат."""
         formatted = {}
-        for subset, mass in result.items():
-            subset_str = self.format_subset(subset)
-            formatted[subset_str] = round(mass, 6)
+        for subset, mass in bpa.items():
+            subset_str = self._format_subset(subset)
+            formatted[subset_str] = round(mass, 10)
         return formatted
-    
-    def discount_bpa(self, data: Dict[str, Any], source_index: int, 
-                    alpha: float) -> Dict[frozenset, float]:
-        """
-        Применяет дисконтирование к указанному источнику
-        
-        Args:
-            data: подготовленные данные
-            source_index: индекс источника (0-based)
-            alpha: коэффициент дисконтирования (0=надежный, 1=ненадежный)
-            
-        Returns:
-            Дисконтированное BPA
-        """
-        if not self.ds:
-            raise ValueError("Данные не загружены. Сначала вызовите load_from_dass()")
-        
-        if source_index >= len(data["bpas"]):
-            raise ValueError(f"Нет источника с индексом {source_index}")
-        
-        bpa = data["bpas"][source_index]
-        return self.ds.discount(bpa, alpha)
