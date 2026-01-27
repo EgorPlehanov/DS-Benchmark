@@ -114,8 +114,14 @@ class BookExampleValidator:
                 result['total_tests'] += 1
                 
                 try:
+                    # Подготавливаем данные для Belief (нужен BPA)
+                    if 'bpas' in data and data['bpas']:
+                        source_data = {"frame": data["frame"], "bpa": data['bpas'][0]}
+                    else:
+                        source_data = data
+                    
                     # Вычисляем Belief
-                    computed = self.adapter.belief(data, event_str)
+                    computed = self.adapter.calculate_belief(source_data, event_str)
                     
                     # Сравниваем
                     if self._compare_values(computed, expected_value, tolerance):
@@ -142,8 +148,14 @@ class BookExampleValidator:
                 result['total_tests'] += 1
                 
                 try:
+                    # Подготавливаем данные для Plausibility (нужен BPA)
+                    if 'bpas' in data and data['bpas']:
+                        source_data = {"frame": data["frame"], "bpa": data['bpas'][0]}
+                    else:
+                        source_data = data
+                    
                     # Вычисляем Plausibility
-                    computed = self.adapter.plausibility(data, event_str)
+                    computed = self.adapter.calculate_plausibility(source_data, event_str)
                     
                     # Сравниваем
                     if self._compare_values(computed, expected_value, tolerance):
@@ -171,7 +183,7 @@ class BookExampleValidator:
         if 'combined_dempster' in expected:
             try:
                 # Вычисляем комбинирование
-                computed_result = self.adapter.dempster_combine_sources(data)
+                computed_result = self.adapter.combine_sources_dempster(data)
                 
                 # Сравниваем с ожидаемым
                 expected_result = expected['combined_dempster']
@@ -214,7 +226,7 @@ class BookExampleValidator:
         if 'combined_yager' in expected:
             try:
                 # Вычисляем комбинирование
-                computed_result = self.adapter.yager_combine_sources(data)
+                computed_result = self.adapter.combine_sources_yager(data)
                 
                 # Сравниваем с ожидаемым
                 expected_result = expected['combined_yager']
@@ -265,78 +277,113 @@ class BookExampleValidator:
         if not discount_factors:
             discount_factors = [0.048, 0.952]  # из примера 2.7
         
-        # Получаем BPA из данных
-        bpas = data.get('bpas', [])
+        # Применяем дисконтирование
+        if discount_factors and len(discount_factors) > 0:
+            # Применяем ко всем источникам один коэффициент (или по списку)
+            # В нашем адаптере apply_discounting принимает один alpha для всех
+            # Если нужно разные, нужно вызывать для каждого источника отдельно
+            
+            if len(discount_factors) == 1:
+                # Один коэффициент для всех
+                alpha = discount_factors[0]
+                discounted_list = self.adapter.apply_discounting(data, alpha)
+            else:
+                # Разные коэффициенты - обрабатываем последовательно
+                discounted_list = []
+                for i, alpha in enumerate(discount_factors):
+                    if i == 0:
+                        # Для первого источника применяем дисконтирование
+                        source_data = {"frame": data["frame"], "bpa": data['bpas'][i]}
+                        # В нашем адаптере нет метода discount для одного источника,
+                        # поэтому создаем временные данные
+                        temp_data = {
+                            "frame": data["frame"],
+                            "bpas": [data['bpas'][i]]
+                        }
+                        discounted = self.adapter.apply_discounting(temp_data, alpha)
+                        if discounted:
+                            discounted_list.append(discounted[0])
+                    else:
+                        # Аналогично для других источников
+                        temp_data = {
+                            "frame": data["frame"],
+                            "bpas": [data['bpas'][i]]
+                        }
+                        discounted = self.adapter.apply_discounting(temp_data, alpha)
+                        if discounted:
+                            discounted_list.append(discounted[0])
         
         # Проверяем дисконтированные BPA
-        for i, alpha in enumerate(discount_factors):
-            if i < len(bpas):
-                # Конвертируем BPA в строковый формат для дисконтирования
-                bpa_string = self.adapter._convert_bpa_to_string_format(bpas[i])
+        for i in range(len(discounted_list)):
+            expected_key = f'discounted_source{i+1}'
+            if expected_key in expected:
+                print(f"\nПроверка {expected_key}:")
                 
-                # Применяем дисконтирование
-                discounted = self.adapter.discount(bpa_string, alpha)
+                computed_result = discounted_list[i]
+                expected_result = expected[expected_key]
                 
-                # Проверяем если есть ожидаемые значения
-                expected_key = f'discounted_source{i+1}'
-                if expected_key in expected:
-                    self._compare_bba(
-                        discounted, 
-                        expected[expected_key], 
-                        f"Дисконтированный источник {i+1}",
-                        result, 
-                        tolerance
-                    )
+                all_keys = set(computed_result.keys()) | set(expected_result.keys())
+                
+                for key in sorted(all_keys):
+                    computed_val = computed_result.get(key, 0.0)
+                    expected_val = expected_result.get(key, 0.0)
+                    
+                    result['total_tests'] += 1
+                    
+                    if self._compare_values(computed_val, expected_val, tolerance):
+                        print(f"  ✓ {key}: {computed_val:.4f} (ожидалось: {expected_val:.4f})")
+                        result['passed_tests'] += 1
+                    else:
+                        print(f"  ✗ {key}: {computed_val:.4f} (ожидалось: {expected_val:.4f})")
+                        result['details'].append({
+                            'test': f'{expected_key}: {key}',
+                            'computed': computed_val,
+                            'expected': expected_val,
+                            'diff': abs(computed_val - expected_val)
+                        })
         
         # Проверяем комбинированный результат после дисконтирования
-        if 'combined_dempster' in expected and len(bpas) >= 2:
+        if 'combined_dempster' in expected:
             print("\n2. Проверка комбинирования после дисконтирования:")
             
-            # Дисконтируем BPA
-            discounted_bpas = []
-            for i, (bpa, alpha) in enumerate(zip(bpas, discount_factors)):
-                if i >= len(discount_factors):
-                    break
+            # Создаем данные с дисконтированными BPA
+            if discounted_list:
+                discounted_data = {
+                    "frame": data["frame"],
+                    "bpas": [self._convert_string_bpa_to_frozenset(bpa) for bpa in discounted_list]
+                }
                 
-                bpa_string = self.adapter._convert_bpa_to_string_format(bpa)
-                discounted = self.adapter.discount(bpa_string, alpha)
-                discounted_bpas.append(discounted)
-            
-            if len(discounted_bpas) >= 2:
-                # Комбинируем дисконтированные BPA
-                combined_result = self.adapter.dempster_combine(*discounted_bpas)
+                # Комбинируем по Демпстеру
+                computed_combined = self.adapter.combine_sources_dempster(discounted_data)
+                expected_combined = expected['combined_dempster']
                 
-                self._compare_bba(
-                    combined_result,
-                    expected['combined_dempster'],
-                    "Комбинированный результат после дисконтирования",
-                    result,
-                    tolerance
-                )
+                all_keys = set(computed_combined.keys()) | set(expected_combined.keys())
+                
+                for key in sorted(all_keys):
+                    computed_val = computed_combined.get(key, 0.0)
+                    expected_val = expected_combined.get(key, 0.0)
+                    
+                    result['total_tests'] += 1
+                    
+                    if self._compare_values(computed_val, expected_val, tolerance):
+                        print(f"  ✓ {key}: {computed_val:.4f} (ожидалось: {expected_val:.4f})")
+                        result['passed_tests'] += 1
+                    else:
+                        print(f"  ✗ {key}: {computed_val:.4f} (ожидалось: {expected_val:.4f})")
+                        result['details'].append({
+                            'test': f'combined_after_discount: {key}',
+                            'computed': computed_val,
+                            'expected': expected_val,
+                            'diff': abs(computed_val - expected_val)
+                        })
     
-    def _compare_bba(self, computed_bba, expected_bba, test_name, result, tolerance):
-        """Сравнивает два BPA"""
-        print(f"\n{test_name}:")
-        
-        all_keys = set(computed_bba.keys()) | set(expected_bba.keys())
-        
-        for key in sorted(all_keys):
-            computed_val = computed_bba.get(key, 0.0)
-            expected_val = expected_bba.get(key, 0.0)
-            
-            result['total_tests'] += 1
-            
-            if self._compare_values(computed_val, expected_val, tolerance):
-                print(f"  ✓ {key}: {computed_val:.4f} (ожидалось: {expected_val:.4f})")
-                result['passed_tests'] += 1
-            else:
-                print(f"  ✗ {key}: {computed_val:.4f} (ожидалось: {expected_val:.4f})")
-                result['details'].append({
-                    'test': f'{test_name}: {key}',
-                    'computed': computed_val,
-                    'expected': expected_val,
-                    'diff': abs(computed_val - expected_val)
-                })
+    def _convert_string_bpa_to_frozenset(self, bpa_str: dict) -> dict:
+        """Конвертирует BPA из строкового формата во frozenset"""
+        converted = {}
+        for subset_str, mass in bpa_str.items():
+            subset = self.adapter._parse_subset_str(subset_str)
+            converted[subset] = mass
+        return converted
     
     def _compare_values(self, computed, expected, tolerance):
         """Сравнивает два значения с заданной точностью"""
@@ -394,11 +441,6 @@ def main():
     examples_dir = "data/book_examples"
     os.makedirs(examples_dir, exist_ok=True)
     
-    # Создаем примерные файлы если их нет
-    example_files_created = create_example_files_if_needed(examples_dir)
-    if example_files_created:
-        print(f"📄 Созданы {example_files_created} файлов примеров из книги")
-    
     validator = BookExampleValidator()
     
     # Находим все примеры
@@ -427,8 +469,11 @@ def main():
     validator.print_summary()
     
     # Сохраняем результаты в файл
-    output_file = "results/book_validation_results.json"
-    os.makedirs("results", exist_ok=True)
+    output_dir = "results/book_validation"
+    os.makedirs(output_dir, exist_ok=True)
+    
+    timestamp = __import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_file = os.path.join(output_dir, f"book_validation_{timestamp}.json")
     
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump({
@@ -438,190 +483,6 @@ def main():
         }, f, indent=2, ensure_ascii=False)
     
     print(f"\n📄 Подробные результаты сохранены в {output_file}")
-
-
-def create_example_files_if_needed(examples_dir):
-    """Создает файлы примеров из книги если их нет"""
-    examples = [
-        {
-            "filename": "example_2.1.json",
-            "content": {
-                "metadata": {
-                    "description": "Пример 2.1 из книги: 4 кандидата, 10 экспертов",
-                    "page": "40",
-                    "type": "belief_plausibility_calculation"
-                },
-                "frame_of_discernment": ["1", "2", "3", "4"],
-                "bba_sources": [
-                    {
-                        "id": "experts",
-                        "bba": {
-                            "{}": 0.0,
-                            "{1}": 0.5,
-                            "{1,2}": 0.2,
-                            "{3}": 0.3
-                        }
-                    }
-                ],
-                "expected_results": {
-                    "Belief": {
-                        "{1}": 0.5,
-                        "{2}": 0.0,
-                        "{3}": 0.3,
-                        "{4}": 0.0
-                    },
-                    "Plausibility": {
-                        "{1}": 0.7,
-                        "{2}": 0.2,
-                        "{3}": 0.3,
-                        "{4}": 0.0
-                    }
-                }
-            }
-        },
-        {
-            "filename": "example_2.6.json",
-            "content": {
-                "metadata": {
-                    "description": "Пример 2.6 из книги: комбинирование Демпстера",
-                    "page": "53-54",
-                    "type": "dempster_combination"
-                },
-                "frame_of_discernment": ["1", "2", "3", "4"],
-                "bba_sources": [
-                    {
-                        "id": "source1",
-                        "bba": {
-                            "{}": 0.0,
-                            "{1}": 0.625,
-                            "{2,3}": 0.375
-                        }
-                    },
-                    {
-                        "id": "source2",
-                        "bba": {
-                            "{}": 0.0,
-                            "{1,2}": 0.5,
-                            "{3}": 0.4375,
-                            "{4}": 0.0625
-                        }
-                    }
-                ],
-                "expected_results": {
-                    "combined_dempster": {
-                        "{}": 0.0,
-                        "{1}": 0.4706,
-                        "{2}": 0.2824,
-                        "{3}": 0.2470
-                    },
-                    "combined_yager": {
-                        "{}": 0.0,
-                        "{1}": 0.3125,
-                        "{2}": 0.1875,
-                        "{3}": 0.1641,
-                        "{1,2,3,4}": 0.336
-                    }
-                }
-            }
-        },
-        {
-            "filename": "example_2.7.json",
-            "content": {
-                "metadata": {
-                    "description": "Пример 2.7 из книги: дисконтирование",
-                    "page": "56-57",
-                    "type": "discounting_dempster"
-                },
-                "frame_of_discernment": ["1", "2", "3", "4"],
-                "bba_sources": [
-                    {
-                        "id": "source1",
-                        "reliability": 0.952,
-                        "bba": {
-                            "{}": 0.0,
-                            "{2}": 0.625,
-                            "{2,3}": 0.375
-                        }
-                    },
-                    {
-                        "id": "source2", 
-                        "reliability": 0.048,
-                        "bba": {
-                            "{}": 0.0,
-                            "{1}": 1.0
-                        }
-                    }
-                ],
-                "discount_factors": [0.048, 0.952],
-                "expected_results": {
-                    "discounted_source1": {
-                        "{2}": 0.595,
-                        "{2,3}": 0.357,
-                        "{1,2,3,4}": 0.048
-                    },
-                    "discounted_source2": {
-                        "{1}": 0.048,
-                        "{1,2,3,4}": 0.952
-                    },
-                    "combined_dempster": {
-                        "{1}": 0.002,
-                        "{2}": 0.594,
-                        "{2,3}": 0.356,
-                        "{1,2,3,4}": 0.048
-                    }
-                }
-            }
-        },
-        {
-            "filename": "example_2.8.json",
-            "content": {
-                "metadata": {
-                    "description": "Пример 2.8 из книги: комбинирование Ягера",
-                    "page": "59-60",
-                    "type": "yager_combination"
-                },
-                "frame_of_discernment": ["1", "2", "3", "4"],
-                "bba_sources": [
-                    {
-                        "id": "source1",
-                        "bba": {
-                            "{}": 0.0,
-                            "{1}": 0.625,
-                            "{2,3}": 0.375
-                        }
-                    },
-                    {
-                        "id": "source2",
-                        "bba": {
-                            "{}": 0.0,
-                            "{1,2}": 0.5,
-                            "{3}": 0.4375,
-                            "{4}": 0.0625
-                        }
-                    }
-                ],
-                "expected_results": {
-                    "combined_yager": {
-                        "{}": 0.0,
-                        "{1}": 0.3125,
-                        "{2}": 0.1875,
-                        "{3}": 0.1641,
-                        "{1,2,3,4}": 0.336
-                    }
-                }
-            }
-        }
-    ]
-    
-    created_count = 0
-    for example in examples:
-        filepath = os.path.join(examples_dir, example["filename"])
-        if not os.path.exists(filepath):
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(example["content"], f, indent=2, ensure_ascii=False)
-            created_count += 1
-    
-    return created_count
 
 
 if __name__ == "__main__":
