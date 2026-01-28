@@ -228,7 +228,7 @@ class OurImplementationAdapter(BaseDempsterShaferAdapter):
     def _parse_event(self, event: Union[str, List[str]]) -> set:
         """Парсит событие в множество."""
         if isinstance(event, str):
-            return self._parse_subset_str(event)
+            return set(self._parse_subset_str(event))
         elif isinstance(event, list):
             return set(event)
         else:

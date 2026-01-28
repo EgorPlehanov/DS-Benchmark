@@ -1,734 +1,875 @@
-# src/runners/universal_runner.py
 """
 Универсальный раннер для бенчмаркинга реализаций теории Демпстера-Шейфера.
-Поддерживает любой адаптер, реализующий BaseDempsterShaferAdapter.
+Выполняет 4-шаговый процесс тестирования и собирает метрики производительности.
 """
 
+import os
 import json
 import time
-import statistics
 import tracemalloc
+import statistics
 import psutil
-import gc
 from typing import Dict, List, Any, Optional, Tuple, Callable
-from pathlib import Path
 from datetime import datetime
-
-# Для профилирования (опционально)
-try:
-    import cProfile
-    import pstats
-    PROFILE_AVAILABLE = True
-except ImportError:
-    PROFILE_AVAILABLE = False
+from pathlib import Path
 
 from ..adapters.base_adapter import BaseDempsterShaferAdapter
-from ..generators.validator import DassValidator
-
-
-class PerformanceMetrics:
-    """Контейнер для метрик производительности"""
-    
-    def __init__(self):
-        self.execution_times = []
-        self.memory_usage = []
-        self.cpu_percentages = []
-        self.gc_stats_before = {}
-        self.gc_stats_after = {}
-    
-    def add_execution_time(self, time_ms: float):
-        self.execution_times.append(time_ms)
-    
-    def add_memory_usage(self, memory_bytes: int):
-        self.memory_usage.append(memory_bytes)
-    
-    def add_cpu_percentage(self, cpu_percent: float):
-        self.cpu_percentages.append(cpu_percent)
-    
-    def get_summary(self) -> Dict[str, Any]:
-        """Возвращает сводную статистику по метрикам"""
-        summary = {}
-        
-        if self.execution_times:
-            summary['time_ms'] = {
-                'min': min(self.execution_times),
-                'max': max(self.execution_times),
-                'mean': statistics.mean(self.execution_times),
-                'median': statistics.median(self.execution_times),
-                'stdev': statistics.stdev(self.execution_times) if len(self.execution_times) > 1 else 0
-            }
-        
-        if self.memory_usage:
-            summary['memory_bytes'] = {
-                'peak': max(self.memory_usage) if self.memory_usage else 0,
-                'avg': statistics.mean(self.memory_usage) if self.memory_usage else 0
-            }
-            summary['memory_mb'] = {
-                'peak': max(self.memory_usage) / 1024 / 1024 if self.memory_usage else 0,
-                'avg': statistics.mean(self.memory_usage) / 1024 / 1024 if self.memory_usage else 0
-            }
-        
-        if self.cpu_percentages:
-            summary['cpu_percent'] = {
-                'min': min(self.cpu_percentages),
-                'max': max(self.cpu_percentages),
-                'mean': statistics.mean(self.cpu_percentages),
-                'median': statistics.median(self.cpu_percentages)
-            }
-        
-        return summary
-
-
-class TestResult:
-    """Результаты выполнения одного теста"""
-    
-    def __init__(self, test_name: str):
-        self.test_name = test_name
-        self.timestamp = datetime.now().isoformat()
-        
-        # Результаты шагов
-        self.step1_original = {}  # Исходные Belief/Plausibility
-        self.step2_dempster = {}  # Комбинирование Демпстером
-        self.step3_discount = {}  # Дисконтирование + Демпстер
-        self.step4_yager = {}     # Комбинирование Ягером
-        
-        # Метрики производительности
-        self.performance = {
-            'step1': PerformanceMetrics(),
-            'step2': PerformanceMetrics(),
-            'step3': PerformanceMetrics(),
-            'step4': PerformanceMetrics(),
-            'total': PerformanceMetrics()
-        }
-        
-        # Дополнительная информация
-        self.metadata = {}
-        self.errors = []
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Конвертирует результат в словарь"""
-        return {
-            'metadata': {
-                'test_name': self.test_name,
-                'timestamp': self.timestamp,
-                'errors': self.errors
-            },
-            'step1_original': self.step1_original,
-            'step2_dempster': self.step2_dempster,
-            'step3_discount': self.step3_discount,
-            'step4_yager': self.step4_yager,
-            'performance': {
-                'step1': self.performance['step1'].get_summary(),
-                'step2': self.performance['step2'].get_summary(),
-                'step3': self.performance['step3'].get_summary(),
-                'step4': self.performance['step4'].get_summary(),
-                'total': self.performance['total'].get_summary()
-            }
-        }
-    
-    def add_error(self, error_msg: str):
-        """Добавляет ошибку в результаты"""
-        self.errors.append({
-            'message': error_msg,
-            'timestamp': datetime.now().isoformat()
-        })
 
 
 class UniversalBenchmarkRunner:
     """
-    Универсальный раннер для тестирования адаптеров теории Демпстера-Шейфера.
+    Универсальный раннер для тестирования адаптеров теории ДШ.
     
-    Выполняет 4 шага процесса для каждого теста:
-    1. Исходные Belief/Plausibility для каждого источника
-    2. Комбинирование всех источников по правилу Демпстера
-    3. Дисконтирование + комбинирование по Демпстеру
-    4. Комбинирование всех источников по правилу Ягера
+    Выполняет:
+    1. Загрузку тестовых данных
+    2. Выполнение 4-шагового процесса
+    3. Сбор метрик производительности
+    4. Сохранение структурированных результатов
     """
     
-    def __init__(self, adapter: BaseDempsterShaferAdapter, verbose: bool = False):
+    def __init__(self, adapter: BaseDempsterShaferAdapter, 
+                 results_dir: str = "results/benchmark"):
         """
-        Инициализирует раннер с указанным адаптером.
+        Инициализация раннера.
         
         Args:
-            adapter: Адаптер библиотеки для тестирования
-            verbose: Выводить ли подробную информацию в процессе
+            adapter: Адаптер для тестируемой библиотеки
+            results_dir: Директория для сохранения результатов
         """
         self.adapter = adapter
-        self.verbose = verbose
-        self.results: List[TestResult] = []
-        self.current_iteration = 0
-        self.total_iterations = 0
+        self.adapter_name = adapter.__class__.__name__.replace('Adapter', '').lower()
+        self.results_dir = results_dir
+        self.results = []
         
-        # Состояние профилирования
-        self.profiler = None
-        self.profile_results = {}
+        # Создаем директории для результатов
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.run_id = f"{self.adapter_name}_{timestamp}"
+        self.run_dir = os.path.join(results_dir, self.run_id)
+        
+        os.makedirs(self.run_dir, exist_ok=True)
+        os.makedirs(os.path.join(self.run_dir, "raw"), exist_ok=True)
+        os.makedirs(os.path.join(self.run_dir, "profiles"), exist_ok=True)
+        os.makedirs(os.path.join(self.run_dir, "aggregated"), exist_ok=True)
+        
+        print(f"🚀 Инициализирован раннер для {self.adapter_name}")
+        print(f"📁 Результаты будут сохранены в: {self.run_dir}")
     
-    def _log(self, message: str, level: str = "INFO"):
-        """Логирование сообщений"""
-        if self.verbose:
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            print(f"[{timestamp}] [{level}] {message}")
-    
-    def _measure_performance(self, func: Callable, *args, **kwargs) -> Tuple[Any, Dict[str, Any]]:
+    def run_test(self, test_data: Dict[str, Any], 
+                 test_name: str,
+                 iterations: int = 3,
+                 alphas: Optional[List[float]] = None) -> Dict[str, Any]:
         """
-        Выполняет функцию с измерением производительности.
+        Запускает один тест.
+        
+        Args:
+            test_data: Данные теста в формате DASS
+            test_name: Имя теста (для сохранения)
+            iterations: Количество итераций
+            alphas: Коэффициенты дисконтирования для каждого источника
+            
+        Returns:
+            Результаты теста
+        """
+        print(f"\n🧪 Запуск теста: {test_name}")
+        print(f"   Итераций: {iterations}")
+        
+        # Инициализация результатов
+        test_results = {
+            "metadata": {
+                "test_name": test_name,
+                "adapter": self.adapter_name,
+                "iterations": iterations,
+                "timestamp": datetime.now().isoformat(),
+                "frame_size": len(test_data.get("frame_of_discernment", [])),
+                "sources_count": len(test_data.get("bba_sources", []))
+            },
+            "iterations": [],
+            "aggregated": {}
+        }
+        
+        # Загружаем данные через адаптер
+        loaded_data = self.adapter.load_from_dass(test_data)
+        
+        # Определяем коэффициенты дисконтирования (по умолчанию 0.1 для всех)
+        if alphas is None:
+            sources_count = self.adapter.get_sources_count(loaded_data)
+            alphas = [0.1] * sources_count  # По умолчанию все 0.1
+        
+        # Выполняем итерации
+        for i in range(iterations):
+            print(f"   Итерация {i+1}/{iterations}...", end="", flush=True)
+            
+            iteration_results = self._run_single_iteration(
+                loaded_data=loaded_data,
+                test_data=test_data,
+                iteration_num=i+1,
+                alphas=alphas
+            )
+            
+            test_results["iterations"].append(iteration_results)
+            print(" ✓")
+        
+        # Агрегируем результаты итераций
+        test_results["aggregated"] = self._aggregate_iteration_results(
+            test_results["iterations"]
+        )
+        
+        # Сохраняем сырые результаты
+        self._save_test_results(test_results, test_name)
+        
+        # Добавляем в общие результаты
+        self.results.append(test_results)
+        
+        return test_results
+    
+    def _run_single_iteration(self, 
+                            loaded_data: Any,
+                            test_data: Dict[str, Any],
+                            iteration_num: int,
+                            alphas: List[float]) -> Dict[str, Any]:
+        """
+        Выполняет одну итерацию теста.
         
         Returns:
-            tuple: (результат_функции, метрики_производительности)
+            Результаты итерации с метриками производительности
+        """
+        iteration_results = {
+            "iteration": iteration_num,
+            "performance": {}
+        }
+        
+        # === ШАГ 1: Исходные Belief/Plausibility ===
+        step1_results, step1_metrics = self._measure_performance(
+            self._execute_step1,
+            loaded_data,
+            step_name="step1_original"
+        )
+        iteration_results["step1"] = step1_results
+        iteration_results["performance"]["step1"] = step1_metrics
+        
+        # === ШАГ 2: Комбинирование Демпстером ===
+        step2_results, step2_metrics = self._measure_performance(
+            self._execute_step2,
+            loaded_data,
+            step_name="step2_dempster"
+        )
+        iteration_results["step2"] = step2_results
+        iteration_results["performance"]["step2"] = step2_metrics
+        
+        # === ШАГ 3: Дисконтирование + Демпстер ===
+        step3_results, step3_metrics = self._measure_performance(
+            self._execute_step3,
+            loaded_data,
+            alphas,
+            step_name="step3_discount_dempster"
+        )
+        iteration_results["step3"] = step3_results
+        iteration_results["performance"]["step3"] = step3_metrics
+        
+        # === ШАГ 4: Комбинирование Ягером ===
+        step4_results, step4_metrics = self._measure_performance(
+            self._execute_step4,
+            loaded_data,
+            step_name="step4_yager"
+        )
+        iteration_results["step4"] = step4_results
+        iteration_results["performance"]["step4"] = step4_metrics
+        
+        # Общая статистика по итерации
+        iteration_results["performance"]["total"] = {
+            "time_total_ms": sum(
+                step["time_ms"] for step in iteration_results["performance"].values() 
+                if isinstance(step, dict) and "time_ms" in step
+            ),
+            "memory_peak_mb": max(
+                step.get("memory_peak_mb", 0) for step in iteration_results["performance"].values()
+                if isinstance(step, dict)
+            )
+        }
+        
+        return iteration_results
+    
+    def _execute_step1(self, loaded_data: Any) -> Dict[str, Any]:
+        """Шаг 1: Исходные Belief/Plausibility для каждого источника"""
+        frame_elements = self.adapter.get_frame_of_discernment(loaded_data)
+        sources_count = self.adapter.get_sources_count(loaded_data)
+        
+        results = {
+            "frame_elements": frame_elements,
+            "sources": []
+        }
+        
+        # Для каждого источника вычисляем Belief и Plausibility
+        for i in range(sources_count):
+            # Получаем данные для конкретного источника
+            source_data = self._get_source_data(loaded_data, i)
+            
+            source_results = {
+                "source_id": f"source_{i+1}",
+                "beliefs": {},
+                "plausibilities": {}
+            }
+            
+            # Для каждого одиночного элемента
+            for element in frame_elements:
+                belief = self.adapter.calculate_belief(source_data, element)
+                plausibility = self.adapter.calculate_plausibility(source_data, element)
+                
+                source_results["beliefs"][f"{{{element}}}"] = belief
+                source_results["plausibilities"][f"{{{element}}}"] = plausibility
+            
+            # Для всего фрейма (Ω)
+            omega = "{" + ",".join(sorted(frame_elements)) + "}"
+            source_results["beliefs"][omega] = self.adapter.calculate_belief(source_data, frame_elements)  # Bel(Ω) = 1.0
+            source_results["plausibilities"][omega] = self.adapter.calculate_plausibility(source_data, frame_elements)  # Pl(Ω) = 1.0
+
+            results["sources"].append(source_results)
+        
+        return results
+    
+    def _execute_step2(self, loaded_data: Any) -> Dict[str, Any]:
+        """Шаг 2: Комбинирование всех источников по правилу Демпстера"""
+        # Комбинируем все источники
+        combined_bpa_str = self.adapter.combine_sources_dempster(loaded_data)
+        
+        # КОНВЕРТИРУЕМ строковый формат в формат нашего адаптера
+        combined_bpa = self._convert_string_bpa_to_frozenset(combined_bpa_str)
+        
+        # Создаем данные с комбинированным BPA для вычисления Belief/Plausibility
+        combined_data = self._create_combined_data(loaded_data, combined_bpa)
+        
+        frame_elements = self.adapter.get_frame_of_discernment(loaded_data)
+        
+        results = {
+            "combined_bpa": combined_bpa_str,  # Сохраняем в строковом формате
+            "beliefs": {},
+            "plausibilities": {}
+        }
+        
+        # Для каждого одиночного элемента
+        for element in frame_elements:
+            belief = self.adapter.calculate_belief(combined_data, element)
+            plausibility = self.adapter.calculate_plausibility(combined_data, element)
+            
+            results["beliefs"][f"{{{element}}}"] = belief
+            results["plausibilities"][f"{{{element}}}"] = plausibility
+        
+        # Для всего фрейма
+        omega = "{" + ",".join(sorted(frame_elements)) + "}"
+        results["beliefs"][omega] = self.adapter.calculate_belief(combined_data, frame_elements)
+        results["plausibilities"][omega] = self.adapter.calculate_plausibility(combined_data, frame_elements)
+        
+        return results
+    
+    def _execute_step3(self, loaded_data: Any, alphas: List[float]) -> Dict[str, Any]:
+        """Шаг 3: Дисконтирование + комбинирование Демпстером"""
+        # Получаем количество источников
+        sources_count = self.adapter.get_sources_count(loaded_data)
+        
+        # Применяем дисконтирование к каждому источнику с его alpha
+        discounted_bpas_str = []
+        for i in range(sources_count):
+            # Получаем данные для конкретного источника
+            source_data = self._get_source_data(loaded_data, i)
+            
+            # Применяем дисконтирование с alpha для этого источника
+            alpha = alphas[i] if i < len(alphas) else 0.1
+            
+            # Для применения дисконтирования к одному источнику
+            discounted_list = self.adapter.apply_discounting(source_data, alpha)
+            
+            if discounted_list and len(discounted_list) > 0:
+                discounted_bpas_str.append(discounted_list[0])
+            else:
+                # Если не получилось, используем оригинальный BPA
+                original_bpa = self._extract_bpa_from_source(loaded_data, i)
+                discounted_bpas_str.append(original_bpa)
+        
+        # КОНВЕРТИРУЕМ строковый формат в формат frozenset
+        discounted_bpas = [self._convert_string_bpa_to_frozenset(bpa_str) 
+                          for bpa_str in discounted_bpas_str]
+        
+        # Создаем объект с дисконтированными данными
+        discounted_data = self._create_discounted_data(loaded_data, discounted_bpas)
+        
+        # Комбинируем дисконтированные источники
+        combined_bpa_str = self.adapter.combine_sources_dempster(discounted_data)
+        combined_bpa = self._convert_string_bpa_to_frozenset(combined_bpa_str)
+        
+        # Создаем данные с комбинированным BPA
+        combined_data = self._create_combined_data(discounted_data, combined_bpa)
+        
+        frame_elements = self.adapter.get_frame_of_discernment(loaded_data)
+        
+        results = {
+            "discounted_bpas": discounted_bpas_str,  # Сохраняем в строковом формате
+            "combined_bpa": combined_bpa_str,
+            "beliefs": {},
+            "plausibilities": {}
+        }
+        
+        # Для каждого элемента
+        for element in frame_elements:
+            belief = self.adapter.calculate_belief(combined_data, element)
+            plausibility = self.adapter.calculate_plausibility(combined_data, element)
+            
+            results["beliefs"][f"{{{element}}}"] = belief
+            results["plausibilities"][f"{{{element}}}"] = plausibility
+        
+        # Для всего фрейма
+        omega = "{" + ",".join(sorted(frame_elements)) + "}"
+        results["beliefs"][omega] = self.adapter.calculate_belief(combined_data, frame_elements)
+        results["plausibilities"][omega] = self.adapter.calculate_plausibility(combined_data, frame_elements)
+        
+        return results
+    
+    def _execute_step4(self, loaded_data: Any) -> Dict[str, Any]:
+        """Шаг 4: Комбинирование всех источников по правилу Ягера"""
+        # Комбинируем все источники по Ягеру
+        combined_bpa_str = self.adapter.combine_sources_yager(loaded_data)
+        
+        # КОНВЕРТИРУЕМ строковый формат в формат frozenset
+        combined_bpa = self._convert_string_bpa_to_frozenset(combined_bpa_str)
+        
+        # Создаем данные с комбинированным BPA
+        combined_data = self._create_combined_data(loaded_data, combined_bpa)
+        
+        frame_elements = self.adapter.get_frame_of_discernment(loaded_data)
+        
+        results = {
+            "combined_bpa": combined_bpa_str,  # Сохраняем в строковом формате
+            "beliefs": {},
+            "plausibilities": {}
+        }
+        
+        # Для каждого элемента
+        for element in frame_elements:
+            belief = self.adapter.calculate_belief(combined_data, element)
+            plausibility = self.adapter.calculate_plausibility(combined_data, element)
+            
+            results["beliefs"][f"{{{element}}}"] = belief
+            results["plausibilities"][f"{{{element}}}"] = plausibility
+        
+        # Для всего фрейма
+        omega = "{" + ",".join(sorted(frame_elements)) + "}"
+        results["beliefs"][omega] = self.adapter.calculate_belief(combined_data, frame_elements)
+        results["plausibilities"][omega] = self.adapter.calculate_plausibility(combined_data, frame_elements)
+        
+        return results
+    
+    def _convert_string_bpa_to_frozenset(self, bpa_str: Dict[str, float]) -> Dict[frozenset, float]:
+        """Конвертирует BPA из строкового формата в формат frozenset."""
+        if not bpa_str:
+            return {}
+        
+        # Проверяем, может уже в нужном формате
+        first_key = next(iter(bpa_str.keys()))
+        if isinstance(first_key, frozenset):
+            return bpa_str # type: ignore
+        
+        # Конвертируем строки во frozenset
+        bpa_frozenset: Dict[frozenset, float] = {}
+        for subset_str, mass in bpa_str.items():
+            if subset_str == "{}":
+                subset = frozenset()
+            else:
+                elements = subset_str.strip("{}").split(",")
+                if elements == ['']:
+                    subset = frozenset()
+                else:
+                    subset = frozenset(elements)
+            bpa_frozenset[subset] = mass
+        
+        return bpa_frozenset
+        
+    def _measure_performance(self, func: Callable, *args, 
+                           step_name: str = "", **kwargs) -> Tuple[Any, Dict[str, float]]:
+        """
+        Измеряет производительность выполнения функции.
+        
+        Returns:
+            (результат_функции, метрики_производительности)
         """
         metrics = {}
         
-        # Измеряем память до выполнения
+        # Начинаем отслеживание памяти
         tracemalloc.start()
         snapshot1 = tracemalloc.take_snapshot()
         
-        # Измеряем CPU до выполнения
+        # Измеряем время CPU
         process = psutil.Process()
         cpu_before = process.cpu_percent(interval=None)
         
-        # Собираем статистику GC
-        gc.collect()
-        gc_stats_before = gc.get_stats()
-        
-        # Измеряем время выполнения
+        # Время выполнения
         start_time = time.perf_counter()
         
         # Выполняем функцию
         try:
             result = func(*args, **kwargs)
         except Exception as e:
-            end_time = time.perf_counter()
-            snapshot2 = tracemalloc.take_snapshot()
-            tracemalloc.stop()
-            
-            metrics['error'] = str(e)
-            metrics['execution_time_ms'] = (end_time - start_time) * 1000
-            metrics['memory_delta_bytes'] = 0
-            
-            raise e
+            # Сохраняем ошибку в метриках
+            result = {"error": str(e)}
+            metrics["error"] = str(e)
         
+        # Конец измерения времени
         end_time = time.perf_counter()
         
-        # Измеряем память после выполнения
+        # Загрузка CPU после выполнения
+        cpu_after = process.cpu_percent(interval=None)
+        
+        # Память после выполнения
         snapshot2 = tracemalloc.take_snapshot()
         tracemalloc.stop()
         
-        # Измеряем CPU после выполнения
-        cpu_after = process.cpu_percent(interval=None)
-        
-        # Собираем статистику GC после
-        gc_stats_after = gc.get_stats()
-        
         # Вычисляем метрики
-        metrics['execution_time_ms'] = (end_time - start_time) * 1000
+        metrics["time_ms"] = (end_time - start_time) * 1000  # миллисекунды
         
-        # Вычисляем использование памяти
-        top_stats = snapshot2.compare_to(snapshot1, 'lineno')
-        total_memory = sum(stat.size for stat in top_stats)
-        metrics['memory_delta_bytes'] = total_memory
-        metrics['memory_peak_bytes'] = tracemalloc.get_traced_memory()[1]
+        # Потребление памяти
+        memory_stats = snapshot2.compare_to(snapshot1, 'lineno')
+        memory_usage = sum(stat.size for stat in memory_stats)
+        metrics["memory_peak_mb"] = memory_usage / 1024 / 1024
         
-        # Вычисляем использование CPU
-        metrics['cpu_percent'] = max(cpu_before, cpu_after)  # Берем максимум
-        
-        # Собираем статистику GC
-        metrics['gc'] = {
-            'collections_before': gc_stats_before,
-            'collections_after': gc_stats_after
-        }
+        # Загрузка CPU
+        metrics["cpu_usage_percent"] = max(0, cpu_after - cpu_before)
         
         return result, metrics
     
-    def _execute_step1(self, loaded_data: Any, result: TestResult) -> Dict[str, Any]:
+    def _get_source_data(self, loaded_data: Any, source_index: int) -> Any:
         """
-        Шаг 1: Исходные Belief/Plausibility для каждого источника.
-        
-        Для каждого источника вычисляем Belief и Plausibility для:
-        - Каждого отдельного элемента фрейма
-        - Всего фрейма Ω (всегда Bel=1, Pl=1)
+        Извлекает данные для конкретного источника.
         """
-        self._log(f"Выполнение шага 1 для теста {result.test_name}")
+        # Проверяем формат данных нашего адаптера
+        if isinstance(loaded_data, dict) and 'bpas' in loaded_data:
+            # Создаем данные только с одним BPA
+            single_source_data = loaded_data.copy()
+            if source_index < len(loaded_data['bpas']):
+                single_source_data['bpas'] = [loaded_data['bpas'][source_index]]
+            else:
+                single_source_data['bpas'] = [{}]
+            return single_source_data
         
-        try:
-            # Получаем фрейм различения
-            frame_elements = self.adapter.get_frame_of_discernment(loaded_data)
-            n_sources = self.adapter.get_sources_count(loaded_data)
-            
-            step_result = {
-                'frame_elements': frame_elements,
-                'sources': []
-            }
-            
-            # Для каждого источника
-            for source_idx in range(n_sources):
-                source_result = {
-                    'source_id': f'source_{source_idx + 1}',
-                    'beliefs': {},
-                    'plausibilities': {}
-                }
-                
-                # Вычисляем Belief и Plausibility для каждого элемента
-                for element in frame_elements:
-                    # Belief для одиночного элемента
-                    event = f"{{{element}}}"
-                    bel = self.adapter.calculate_belief(loaded_data, event)
-                    pl = self.adapter.calculate_plausibility(loaded_data, event)
-                    
-                    source_result['beliefs'][event] = bel
-                    source_result['plausibilities'][event] = pl
-                
-                # Добавляем Belief и Plausibility для всего фрейма Ω
-                # По определению: Bel(Ω) = 1.0, Pl(Ω) = 1.0
-                omega_str = "{" + ",".join(sorted(frame_elements)) + "}"
-                source_result['beliefs'][omega_str] = 1.0
-                source_result['plausibilities'][omega_str] = 1.0
-                
-                step_result['sources'].append(source_result)
-            
-            return step_result
-            
-        except Exception as e:
-            error_msg = f"Ошибка в шаге 1: {str(e)}"
-            self._log(error_msg, "ERROR")
-            result.add_error(error_msg)
-            raise
+        # Если адаптер имеет другой формат, оставляем как есть
+        return loaded_data
     
-    def _execute_step2(self, loaded_data: Any, result: TestResult) -> Dict[str, Any]:
-        """
-        Шаг 2: Комбинирование всех источников по правилу Демпстера.
-        """
-        self._log(f"Выполнение шага 2 для теста {result.test_name}")
+    def _extract_bpa_from_source(self, loaded_data: Any, source_index: int) -> Dict[str, float]:
+        """Извлекает BPA из источника."""
+        source_data = self._get_source_data(loaded_data, source_index)
         
-        try:
-            # Получаем фрейм различения
-            frame_elements = self.adapter.get_frame_of_discernment(loaded_data)
-            
-            # Комбинируем все источники по Демпстеру
-            combined_bpa = self.adapter.combine_sources_dempster(loaded_data)
-            
-            # Создаем временные данные с комбинированным BPA
-            # (нужно для вычисления Belief/Plausibility)
-            combined_data = {
-                'bpa': combined_bpa,
-                'frame': set(frame_elements),
-                'frame_elements': frame_elements
-            }
-            
-            step_result = {
-                'combined_bpa': combined_bpa,
-                'beliefs': {},
-                'plausibilities': {}
-            }
-            
-            # Вычисляем Belief и Plausibility для каждого элемента
-            for element in frame_elements:
-                event = f"{{{element}}}"
-                bel = self.adapter.calculate_belief(combined_data, event)
-                pl = self.adapter.calculate_plausibility(combined_data, event)
-                
-                step_result['beliefs'][event] = bel
-                step_result['plausibilities'][event] = pl
-            
-            # Добавляем для всего фрейма Ω
-            omega_str = "{" + ",".join(sorted(frame_elements)) + "}"
-            step_result['beliefs'][omega_str] = 1.0
-            step_result['plausibilities'][omega_str] = 1.0
-            
-            # Вычисляем конфликт (если возможно)
-            # Для этого нужно проанализировать combined_bpa
-            if combined_bpa:
-                conflict = combined_bpa.get("{}", 0.0)
-                step_result['conflict_K'] = conflict
-            
-            return step_result
-            
-        except Exception as e:
-            error_msg = f"Ошибка в шаге 2: {str(e)}"
-            self._log(error_msg, "ERROR")
-            result.add_error(error_msg)
-            raise
+        # Пытаемся извлечь BPA
+        if isinstance(source_data, dict) and 'bpas' in source_data and source_data['bpas']:
+            bpa = source_data['bpas'][0]
+            # Если BPA в формате frozenset, конвертируем в строковый формат
+            if bpa and isinstance(next(iter(bpa.keys())), frozenset):
+                return self._convert_frozenset_bpa_to_string(bpa)
+        
+        return {}
     
-    def _execute_step3(self, loaded_data: Any, alphas: List[float], 
-                      result: TestResult) -> Dict[str, Any]:
-        """
-        Шаг 3: Дисконтирование + комбинирование по Демпстеру.
+    def _convert_frozenset_bpa_to_string(self, bpa_frozenset: Dict[frozenset, float]) -> Dict[str, float]:
+        """Конвертирует BPA из формата frozenset в строковый формат."""
+        if not bpa_frozenset:
+            return {}
         
-        Для каждого источника применяется дисконтирование с коэффициентом alpha,
-        затем все дисконтированные источники комбинируются по Демпстеру.
-        """
-        self._log(f"Выполнение шага 3 для теста {result.test_name}")
+        bpa_str = {}
+        for subset, mass in bpa_frozenset.items():
+            if not subset:
+                subset_str = "{}"
+            else:
+                subset_str = "{" + ",".join(sorted(subset)) + "}"
+            bpa_str[subset_str] = mass
         
-        try:
-            # Получаем фрейм и количество источников
-            frame_elements = self.adapter.get_frame_of_discernment(loaded_data)
-            n_sources = self.adapter.get_sources_count(loaded_data)
-            
-            # Если alphas не предоставлены, используем одинаковые значения
-            if alphas is None or len(alphas) != n_sources:
-                default_alpha = 0.1
-                alphas = [default_alpha] * n_sources
-                self._log(f"Используются коэффициенты дисконтирования по умолчанию: {alphas}", "WARNING")
-            
-            # Применяем дисконтирование к каждому источнику
-            discounted_bpas = self.adapter.apply_discounting(loaded_data, alphas)
-            
-            step_result = {
-                'alphas': alphas,
-                'discounted_bpas': discounted_bpas,
-                'combined_bpa': {},
-                'beliefs': {},
-                'plausibilities': {}
-            }
-            
-            # Создаем временные данные с дисконтированными BPA
-            # Для этого нужно создать структуру, похожую на исходные данные,
-            # но с дисконтированными BPA
-            discounted_data = {
-                'frame': set(frame_elements),
-                'frame_elements': frame_elements,
-                'bpas': []
-            }
-            
-            # Конвертируем строковые BPA во внутренний формат адаптера
-            # (зависит от реализации адаптера)
-            for bpa_str in discounted_bpas:
-                # Создаем временный BPA в формате адаптера
-                temp_bpa = {}
-                for subset_str, mass in bpa_str.items():
-                    # Преобразуем строку во frozenset
-                    if subset_str == "{}":
-                        subset = frozenset()
-                    else:
-                        elements = subset_str.strip("{}").split(",")
-                        subset = frozenset(elements)
-                    temp_bpa[subset] = mass
-                
-                discounted_data['bpas'].append(temp_bpa)
-            
-            # Комбинируем дисконтированные источники по Демпстеру
-            combined_bpa = self.adapter.combine_sources_dempster(discounted_data)
-            step_result['combined_bpa'] = combined_bpa
-            
-            # Создаем данные для вычисления Belief/Plausibility
-            combined_data = {
-                'bpa': combined_bpa,
-                'frame': set(frame_elements),
-                'frame_elements': frame_elements
-            }
-            
-            # Вычисляем Belief и Plausibility для каждого элемента
-            for element in frame_elements:
-                event = f"{{{element}}}"
-                bel = self.adapter.calculate_belief(combined_data, event)
-                pl = self.adapter.calculate_plausibility(combined_data, event)
-                
-                step_result['beliefs'][event] = bel
-                step_result['plausibilities'][event] = pl
-            
-            # Добавляем для всего фрейма Ω
-            omega_str = "{" + ",".join(sorted(frame_elements)) + "}"
-            step_result['beliefs'][omega_str] = 1.0
-            step_result['plausibilities'][omega_str] = 1.0
-            
-            # Конфликт
-            if combined_bpa:
-                conflict = combined_bpa.get("{}", 0.0)
-                step_result['conflict_K'] = conflict
-            
-            return step_result
-            
-        except Exception as e:
-            error_msg = f"Ошибка в шаге 3: {str(e)}"
-            self._log(error_msg, "ERROR")
-            result.add_error(error_msg)
-            raise
+        return bpa_str
     
-    def _execute_step4(self, loaded_data: Any, result: TestResult) -> Dict[str, Any]:
-        """
-        Шаг 4: Комбинирование всех источников по правилу Ягера.
-        """
-        self._log(f"Выполнение шага 4 для теста {result.test_name}")
+    def _create_combined_data(self, original_data: Any, 
+                            combined_bpa: Dict[frozenset, float]) -> Any:
+        """Создает объект данных с комбинированным BPA."""
+        if isinstance(original_data, dict):
+            combined_data = original_data.copy()
+            combined_data['bpas'] = [combined_bpa]
+            return combined_data
         
-        try:
-            # Получаем фрейм различения
-            frame_elements = self.adapter.get_frame_of_discernment(loaded_data)
-            
-            # Комбинируем все источники по Ягеру
-            combined_bpa = self.adapter.combine_sources_yager(loaded_data)
-            
-            # Создаем временные данные с комбинированным BPA
-            combined_data = {
-                'bpa': combined_bpa,
-                'frame': set(frame_elements),
-                'frame_elements': frame_elements
-            }
-            
-            step_result = {
-                'combined_bpa': combined_bpa,
-                'beliefs': {},
-                'plausibilities': {}
-            }
-            
-            # Вычисляем Belief и Plausibility для каждого элемента
-            for element in frame_elements:
-                event = f"{{{element}}}"
-                bel = self.adapter.calculate_belief(combined_data, event)
-                pl = self.adapter.calculate_plausibility(combined_data, event)
-                
-                step_result['beliefs'][event] = bel
-                step_result['plausibilities'][event] = pl
-            
-            # Добавляем для всего фрейма Ω
-            omega_str = "{" + ",".join(sorted(frame_elements)) + "}"
-            step_result['beliefs'][omega_str] = 1.0
-            step_result['plausibilities'][omega_str] = 1.0
-            
-            # В правиле Ягера конфликт переносится в универсальное множество
-            if combined_bpa:
-                omega_set = frozenset(frame_elements)
-                conflict_mass = combined_bpa.get(omega_set, {}).get("mass", 0.0)
-                step_result['conflict_in_omega'] = conflict_mass
-            
-            return step_result
-            
-        except Exception as e:
-            error_msg = f"Ошибка в шаге 4: {str(e)}"
-            self._log(error_msg, "ERROR")
-            result.add_error(error_msg)
-            raise
+        return original_data
     
-    def run_single_test(self, test_data: Dict[str, Any], 
-                       iterations: int = 3,
-                       alphas: Optional[List[float]] = None,
-                       enable_profiling: bool = False) -> TestResult:
-        """
-        Запускает один тест указанное количество раз.
+    def _create_discounted_data(self, original_data: Any,
+                              discounted_bpas: List[Dict[frozenset, float]]) -> Any:
+        """Создает объект данных с дисконтированными BPA."""
+        if isinstance(original_data, dict):
+            discounted_data = original_data.copy()
+            discounted_data['bpas'] = discounted_bpas
+            return discounted_data
         
-        Args:
-            test_data: Тестовые данные в формате DASS
-            iterations: Количество повторений теста
-            alphas: Коэффициенты дисконтирования для каждого источника
-            enable_profiling: Включить детальное профилирование
-            
-        Returns:
-            TestResult: Результаты выполнения теста
-        """
-        test_name = test_data.get('metadata', {}).get('test_id', 'unknown_test')
-        
-        self._log(f"Запуск теста: {test_name} ({iterations} итераций)")
-        self.current_iteration = 0
-        self.total_iterations = iterations
-        
-        # Создаем объект результата
-        result = TestResult(test_name)
-        
-        # Начинаем профилирование, если включено
-        if enable_profiling and PROFILE_AVAILABLE:
-            self.profiler = cProfile.Profile()
-            self.profiler.enable()
-        
-        try:
-            # Загружаем данные через адаптер
-            loaded_data = self.adapter.load_from_dass(test_data)
-            
-            # Запускаем итерации
-            for iteration in range(iterations):
-                self.current_iteration = iteration + 1
-                self._log(f"Итерация {self.current_iteration}/{iterations}")
-                
-                # Шаг 1: Исходные Belief/Plausibility
-                start_total = time.perf_counter()
-                
-                step1_result, step1_metrics = self._measure_performance(
-                    self._execute_step1, loaded_data, result
-                )
-                result.performance['step1'].add_execution_time(step1_metrics['execution_time_ms'])
-                result.performance['step1'].add_memory_usage(step1_metrics['memory_delta_bytes'])
-                result.performance['step1'].add_cpu_percentage(step1_metrics['cpu_percent'])
-                
-                # Шаг 2: Комбинирование Демпстером
-                step2_result, step2_metrics = self._measure_performance(
-                    self._execute_step2, loaded_data, result
-                )
-                result.performance['step2'].add_execution_time(step2_metrics['execution_time_ms'])
-                result.performance['step2'].add_memory_usage(step2_metrics['memory_delta_bytes'])
-                result.performance['step2'].add_cpu_percentage(step2_metrics['cpu_percent'])
-                
-                # Шаг 3: Дисконтирование + Демпстер
-                step3_result, step3_metrics = self._measure_performance(
-                    self._execute_step3, loaded_data, alphas, result
-                )
-                result.performance['step3'].add_execution_time(step3_metrics['execution_time_ms'])
-                result.performance['step3'].add_memory_usage(step3_metrics['memory_delta_bytes'])
-                result.performance['step3'].add_cpu_percentage(step3_metrics['cpu_percent'])
-                
-                # Шаг 4: Комбинирование Ягером
-                step4_result, step4_metrics = self._measure_performance(
-                    self._execute_step4, loaded_data, result
-                )
-                result.performance['step4'].add_execution_time(step4_metrics['execution_time_ms'])
-                result.performance['step4'].add_memory_usage(step4_metrics['memory_delta_bytes'])
-                result.performance['step4'].add_cpu_percentage(step4_metrics['cpu_percent'])
-                
-                # Общее время
-                end_total = time.perf_counter()
-                total_time_ms = (end_total - start_total) * 1000
-                result.performance['total'].add_execution_time(total_time_ms)
-                
-                # Сохраняем результаты первой итерации
-                if iteration == 0:
-                    result.step1_original = step1_result
-                    result.step2_dempster = step2_result
-                    result.step3_discount = step3_result
-                    result.step4_yager = step4_result
-            
-            self._log(f"Тест {test_name} завершен успешно")
-            
-        except Exception as e:
-            error_msg = f"Критическая ошибка в тесте {test_name}: {str(e)}"
-            self._log(error_msg, "ERROR")
-            result.add_error(error_msg)
-        
-        finally:
-            # Останавливаем профилирование
-            if enable_profiling and PROFILE_AVAILABLE and self.profiler:
-                self.profiler.disable()
-                self.profile_results[test_name] = self.profiler
-        
-        # Добавляем результат в список
-        self.results.append(result)
-        
-        return result
+        return original_data
     
-    def run_test_suite(self, test_suite: Dict[str, List[Dict]], 
-                      iterations: int = 3,
-                      alphas: Optional[List[float]] = None) -> List[TestResult]:
-        """
-        Запускает набор тестов.
+    def _aggregate_iteration_results(self, iterations: List[Dict]) -> Dict[str, Any]:
+        """Агрегирует результаты всех итераций."""
+        if not iterations:
+            return {}
         
-        Args:
-            test_suite: Словарь {группа: [список_тестов]}
-            iterations: Количество повторений каждого теста
-            alphas: Коэффициенты дисконтирования
-            
-        Returns:
-            List[TestResult]: Результаты всех тестов
-        """
-        all_results = []
-        
-        for group_name, tests in test_suite.items():
-            self._log(f"Запуск группы тестов: {group_name} ({len(tests)} тестов)")
-            
-            for test_idx, test_data in enumerate(tests, 1):
-                self._log(f"Тест {test_idx}/{len(tests)} в группе {group_name}")
-                
-                try:
-                    result = self.run_single_test(test_data, iterations, alphas)
-                    all_results.append(result)
-                except Exception as e:
-                    self._log(f"Пропуск теста из-за ошибки: {str(e)}", "ERROR")
-        
-        return all_results
-    
-    def save_results(self, output_dir: str, format: str = "json"):
-        """
-        Сохраняет результаты в указанную директорию.
-        
-        Args:
-            output_dir: Директория для сохранения результатов
-            format: Формат сохранения ("json" или "all")
-        """
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Сохраняем каждый результат отдельно
-        for result in self.results:
-            # Создаем директорию для теста
-            test_dir = output_path / result.test_name
-            test_dir.mkdir(exist_ok=True)
-            
-            # Сохраняем в JSON
-            json_file = test_dir / f"result_{timestamp}.json"
-            with open(json_file, 'w', encoding='utf-8') as f:
-                json.dump(result.to_dict(), f, indent=2, ensure_ascii=False)
-        
-        # Сохраняем агрегированный отчет
-        self._save_aggregated_report(output_path, timestamp)
-        
-        # Сохраняем профили, если есть
-        if self.profile_results:
-            self._save_profiles(output_path, timestamp)
-    
-    def _save_aggregated_report(self, output_path: Path, timestamp: str):
-        """Сохраняет агрегированный отчет по всем тестам"""
         aggregated = {
-            'metadata': {
-                'timestamp': timestamp,
-                'total_tests': len(self.results),
-                'library': self.adapter.__class__.__name__
-            },
-            'summary': self._generate_summary(),
-            'tests': [result.to_dict() for result in self.results]
+            "performance": {}
         }
         
-        report_file = output_path / f"aggregated_report_{timestamp}.json"
-        with open(report_file, 'w', encoding='utf-8') as f:
-            json.dump(aggregated, f, indent=2, ensure_ascii=False)
+        # Агрегация метрик производительности
+        for step in ["step1", "step2", "step3", "step4"]:
+            step_times = [
+                iteration["performance"][step]["time_ms"]
+                for iteration in iterations
+                if step in iteration.get("performance", {}) and "error" not in iteration["performance"][step]
+            ]
+            
+            if step_times:
+                aggregated["performance"][step] = {
+                    "time_ms": {
+                        "min": min(step_times),
+                        "max": max(step_times),
+                        "mean": statistics.mean(step_times),
+                        "median": statistics.median(step_times),
+                        "std": statistics.stdev(step_times) if len(step_times) > 1 else 0
+                    }
+                }
+        
+        # Агрегация итогового времени
+        total_times = [
+            iteration["performance"]["total"]["time_total_ms"]
+            for iteration in iterations
+            if "total" in iteration.get("performance", {})
+        ]
+        
+        if total_times:
+            aggregated["performance"]["total"] = {
+                "time_total_ms": {
+                    "min": min(total_times),
+                    "max": max(total_times),
+                    "mean": statistics.mean(total_times),
+                    "median": statistics.median(total_times),
+                    "std": statistics.stdev(total_times) if len(total_times) > 1 else 0
+                }
+            }
+        
+        # Агрегация результатов вычислений
+        if iterations:
+            aggregated["results"] = iterations[-1]
+        
+        return aggregated
     
-    def _generate_summary(self) -> Dict[str, Any]:
-        """Генерирует сводную статистику по всем тестам"""
+    def _save_test_results(self, test_results: Dict[str, Any], test_name: str):
+        """Сохраняет результаты теста в файлы."""
+        # Сохраняем полные результаты
+        filename = f"{test_name}_{self.run_id}.json"
+        filepath = os.path.join(self.run_dir, "raw", filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(test_results, f, indent=2, ensure_ascii=False)
+        
+        # Сохраняем краткий отчет
+        self._create_short_report(test_results, test_name)
+    
+    def _create_short_report(self, test_results: Dict[str, Any], test_name: str):
+        """Создает краткий текстовый отчет."""
+        metadata = test_results["metadata"]
+        aggregated = test_results.get("aggregated", {})
+        
+        report_lines = [
+            "=" * 70,
+            f"📊 ОТЧЕТ ПО ТЕСТУ: {test_name}",
+            f"📅 Время: {metadata['timestamp']}",
+            f"📚 Адаптер: {metadata['adapter']}",
+            f"🧮 Фрейм: {metadata['frame_size']} элементов",
+            f"📈 Источников: {metadata['sources_count']}",
+            f"🔄 Итераций: {metadata['iterations']}",
+            "=" * 70,
+            ""
+        ]
+        
+        # Проверяем наличие ошибок
+        has_errors = False
+        for iteration in test_results.get("iterations", []):
+            for step in ["step1", "step2", "step3", "step4"]:
+                if step in iteration.get("performance", {}) and "error" in iteration["performance"][step]:
+                    has_errors = True
+                    report_lines.append(f"❌ Ошибка в {step}: {iteration['performance'][step]['error']}")
+        
+        if has_errors:
+            report_lines.append("\n📈 ПРОИЗВОДИТЕЛЬНОСТЬ (если доступно):")
+        else:
+            report_lines.append("📈 ПРОИЗВОДИТЕЛЬНОСТЬ:")
+        
+        report_lines.append("")
+        
+        # Добавляем метрики по шагам
+        perf = aggregated.get("performance", {})
+        for step_name, step_data in perf.items():
+            if step_name == "total":
+                continue
+                
+            time_data = step_data.get("time_ms", {})
+            report_lines.append(f"  {step_name.upper():20}:")
+            report_lines.append(f"    Время (мс): {time_data.get('mean', 0):.2f} "
+                              f"(min: {time_data.get('min', 0):.2f}, "
+                              f"max: {time_data.get('max', 0):.2f})")
+        
+        # Итоговое время
+        if "total" in perf:
+            total_time = perf["total"].get("time_total_ms", {})
+            report_lines.append(f"\n  {'ИТОГО':20}:")
+            report_lines.append(f"    Общее время: {total_time.get('mean', 0):.2f} мс")
+        
+        # Сохраняем отчет
+        report_filename = f"{test_name}_{self.run_id}_report.txt"
+        report_path = os.path.join(self.run_dir, "raw", report_filename)
+        
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write("\n".join(report_lines))
+    
+    def run_test_suite(self, test_dir: str, 
+                      iterations: int = 3,
+                      max_tests: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Запускает набор тестов из директории.
+        
+        Args:
+            test_dir: Директория с тестовыми файлами (.json)
+            iterations: Количество итераций для каждого теста
+            max_tests: Максимальное количество тестов для запуска
+            
+        Returns:
+            Агрегированные результаты по всем тестам
+        """
+        print(f"\n🚀 ЗАПУСК НАБОРА ТЕСТОВ")
+        print(f"📁 Директория: {test_dir}")
+        print(f"🔄 Итераций на тест: {iterations}")
+        
+        # Находим все JSON файлы
+        test_files = []
+        for root, dirs, files in os.walk(test_dir):
+            for file in files:
+                if file.endswith('.json') and file != "statistics.json":  # Пропускаем файл статистики
+                    test_files.append(os.path.join(root, file))
+        
+        # Ограничиваем количество тестов если нужно
+        if max_tests and max_tests < len(test_files):
+            test_files = test_files[:max_tests]
+        
+        print(f"📄 Найдено тестов: {len(test_files)}")
+        
+        # Запускаем каждый тест
+        successful_tests = 0
+        failed_tests = 0
+        
+        for i, test_file in enumerate(test_files, 1):
+            test_name = os.path.splitext(os.path.basename(test_file))[0]
+            print(f"\n[{i}/{len(test_files)}] Тест: {test_name}")
+            
+            try:
+                # Загружаем тестовые данные
+                with open(test_file, 'r', encoding='utf-8') as f:
+                    test_data = json.load(f)
+                
+                # Проверяем обязательные поля
+                if "frame_of_discernment" not in test_data or "bba_sources" not in test_data:
+                    print(f"   ❌ Неверный формат теста {test_name}")
+                    failed_tests += 1
+                    continue
+                
+                # Определяем alphas для каждого источника
+                sources_count = len(test_data.get("bba_sources", []))
+                alphas = [0.1] * sources_count  # По умолчанию 0.1 для всех
+                
+                # Запускаем тест
+                self.run_test(
+                    test_data=test_data,
+                    test_name=test_name,
+                    iterations=iterations,
+                    alphas=alphas
+                )
+                
+                successful_tests += 1
+                
+            except json.JSONDecodeError as e:
+                print(f"   ❌ Ошибка JSON в файле {test_name}: {e}")
+                failed_tests += 1
+            except KeyError as e:
+                print(f"   ❌ Отсутствует поле в тесте {test_name}: {e}")
+                failed_tests += 1
+            except Exception as e:
+                print(f"   ❌ Ошибка при выполнении теста {test_name}: {e}")
+                failed_tests += 1
+        
+        # Создаем итоговый отчет по всем тестам
+        summary = self._create_summary_report()
+        
+        print(f"\n✅ ВЫПОЛНЕНИЕ ЗАВЕРШЕНО")
+        print(f"📊 Успешных тестов: {successful_tests}/{len(test_files)}")
+        print(f"📊 Неудачных тестов: {failed_tests}/{len(test_files)}")
+        print(f"📊 Результаты сохранены в: {self.run_dir}")
+        
+        return summary
+    
+    def _create_summary_report(self) -> Dict[str, Any]:
+        """Создает итоговый отчет по всем выполненным тестам."""
         if not self.results:
             return {}
         
         summary = {
-            'performance_by_step': {},
-            'overall_metrics': {
-                'total_tests': len(self.results),
-                'failed_tests': sum(1 for r in self.results if r.errors),
-                'total_iterations': self.total_iterations
-            }
+            "metadata": {
+                "adapter": self.adapter_name,
+                "total_tests": len(self.results),
+                "run_id": self.run_id,
+                "timestamp": datetime.now().isoformat()
+            },
+            "tests": [],
+            "statistics": {}
         }
         
-        # Собираем метрики по шагам
-        steps = ['step1', 'step2', 'step3', 'step4', 'total']
+        # Собираем статистику по всем тестам
+        frame_sizes = []
+        source_counts = []
+        step_times = {
+            "step1": [],
+            "step2": [],
+            "step3": [],
+            "step4": [],
+            "total": []
+        }
         
-        for step in steps:
-            step_times = []
-            step_memory = []
+        successful_tests = 0
+        
+        for test_result in self.results:
+            metadata = test_result["metadata"]
+            aggregated = test_result.get("aggregated", {})
+            perf = aggregated.get("performance", {})
             
-            for result in self.results:
-                perf_summary = result.performance[step].get_summary()
-                if 'time_ms' in perf_summary:
-                    step_times.append(perf_summary['time_ms']['mean'])
-                if 'memory_bytes' in perf_summary:
-                    step_memory.append(perf_summary['memory_bytes']['peak'])
+            # Проверяем, был ли тест успешным
+            test_successful = True
+            for iteration in test_result.get("iterations", []):
+                for step in ["step1", "step2", "step3", "step4"]:
+                    if step in iteration.get("performance", {}) and "error" in iteration["performance"][step]:
+                        test_successful = False
+                        break
+                if not test_successful:
+                    break
             
-            if step_times:
-                summary['performance_by_step'][step] = {
-                    'avg_time_ms': statistics.mean(step_times) if step_times else 0,
-                    'min_time_ms': min(step_times) if step_times else 0,
-                    'max_time_ms': max(step_times) if step_times else 0,
-                    'avg_memory_mb': (statistics.mean(step_memory) / 1024 / 1024) if step_memory else 0
+            if test_successful:
+                successful_tests += 1
+            
+            # Добавляем информацию о тесте
+            test_info = {
+                "test_name": metadata["test_name"],
+                "frame_size": metadata["frame_size"],
+                "sources_count": metadata["sources_count"],
+                "successful": test_successful,
+                "performance": perf
+            }
+            summary["tests"].append(test_info)
+            
+            # Собираем статистику только для успешных тестов
+            if test_successful:
+                frame_sizes.append(metadata["frame_size"])
+                source_counts.append(metadata["sources_count"])
+                
+                # Время по шагам
+                for step in step_times.keys():
+                    if step in perf:
+                        time_data = perf[step].get("time_ms", {})
+                        if "mean" in time_data:
+                            step_times[step].append(time_data["mean"])
+        
+        # Вычисляем статистику
+        summary["statistics"] = {
+            "successful_tests": successful_tests,
+            "total_tests": len(self.results),
+            "success_rate": successful_tests / len(self.results) * 100 if self.results else 0,
+            "frame_size": {
+                "min": min(frame_sizes) if frame_sizes else 0,
+                "max": max(frame_sizes) if frame_sizes else 0,
+                "mean": statistics.mean(frame_sizes) if frame_sizes else 0
+            },
+            "sources_count": {
+                "min": min(source_counts) if source_counts else 0,
+                "max": max(source_counts) if source_counts else 0,
+                "mean": statistics.mean(source_counts) if source_counts else 0
+            },
+            "performance": {}
+        }
+        
+        # Статистика по времени
+        for step, times in step_times.items():
+            if times:
+                summary["statistics"]["performance"][step] = {
+                    "time_ms": {
+                        "min": min(times),
+                        "max": max(times),
+                        "mean": statistics.mean(times),
+                        "median": statistics.median(times),
+                        "std": statistics.stdev(times) if len(times) > 1 else 0
+                    }
                 }
+        
+        # Сохраняем итоговый отчет
+        summary_file = os.path.join(self.run_dir, "aggregated", "summary.json")
+        with open(summary_file, 'w', encoding='utf-8') as f:
+            json.dump(summary, f, indent=2, ensure_ascii=False)
+        
+        # Создаем текстовый отчет
+        self._create_final_text_report(summary)
         
         return summary
     
-    def _save_profiles(self, output_path: Path, timestamp: str):
-        """Сохраняет результаты профилирования"""
-        profiles_dir = output_path / "profiles"
-        profiles_dir.mkdir(exist_ok=True)
+    def _create_final_text_report(self, summary: Dict[str, Any]):
+        """Создает финальный текстовый отчет."""
+        metadata = summary["metadata"]
+        stats = summary["statistics"]
         
-        for test_name, profiler in self.profile_results.items():
-            # Сохраняем сырые статистики
-            stats_file = profiles_dir / f"profile_{test_name}_{timestamp}.prof"
+        report_lines = [
+            "=" * 70,
+            f"📊 ИТОГОВЫЙ ОТЧЕТ ПО БЕНЧМАРКУ",
+            f"📅 Время: {metadata['timestamp']}",
+            f"📚 Адаптер: {metadata['adapter']}",
+            f"🧪 Всего тестов: {metadata['total_tests']}",
+            f"✅ Успешных тестов: {stats.get('successful_tests', 0)}",
+            f"📈 Успешность: {stats.get('success_rate', 0):.1f}%",
+            "=" * 70,
+            "",
+            "📈 СТАТИСТИКА:",
+            ""
+        ]
+        
+        # Статистика по фреймам
+        frame_stats = stats.get("frame_size", {})
+        report_lines.append(f"  Размер фрейма (успешные тесты):")
+        report_lines.append(f"    Минимальный: {frame_stats.get('min', 0)}")
+        report_lines.append(f"    Максимальный: {frame_stats.get('max', 0)}")
+        report_lines.append(f"    Средний: {frame_stats.get('mean', 0):.1f}")
+        
+        # Статистика по источникам
+        source_stats = stats.get("sources_count", {})
+        report_lines.append(f"\n  Количество источников (успешные тесты):")
+        report_lines.append(f"    Минимальное: {source_stats.get('min', 0)}")
+        report_lines.append(f"    Максимальное: {source_stats.get('max', 0)}")
+        report_lines.append(f"    Среднее: {source_stats.get('mean', 0):.1f}")
+        
+        # Производительность по шагам
+        perf_stats = stats.get("performance", {})
+        if perf_stats:
+            report_lines.append(f"\n  ПРОИЗВОДИТЕЛЬНОСТЬ (среднее время, мс):")
             
-            # Создаем читаемый отчет
-            report_file = profiles_dir / f"profile_{test_name}_{timestamp}.txt"
-            with open(report_file, 'w') as f:
-                stats = pstats.Stats(profiler, stream=f)
-                stats.sort_stats('cumulative')
-                stats.print_stats(50)  # Топ 50 функций
+            step_names = {
+                "step1": "Исходные Bel/Pl",
+                "step2": "Демпстер",
+                "step3": "Дисконт+Демпстер",
+                "step4": "Ягер",
+                "total": "ИТОГО"
+            }
+            
+            for step, step_name in step_names.items():
+                if step in perf_stats:
+                    time_data = perf_stats[step].get("time_ms", {})
+                    mean_time = time_data.get("mean", 0)
+                    report_lines.append(f"    {step_name:20}: {mean_time:.2f} мс")
         
-        self._log(f"Профили сохранены в {profiles_dir}")
+        # Сохраняем отчет
+        report_file = os.path.join(self.run_dir, "aggregated", "final_report.txt")
+        with open(report_file, 'w', encoding='utf-8') as f:
+            f.write("\n".join(report_lines))
+        
+        # Также выводим в консоль
+        print("\n" + "\n".join(report_lines))
