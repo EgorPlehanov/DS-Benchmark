@@ -383,12 +383,9 @@ class UniversalBenchmarkRunner:
         return bpa_frozenset
         
     def _measure_performance(self, func: Callable, *args, 
-                           step_name: str = "", **kwargs) -> Tuple[Any, Dict[str, float]]:
+                       step_name: str = "", **kwargs) -> Tuple[Any, Dict[str, float]]:
         """
         Измеряет производительность выполнения функции.
-        
-        Returns:
-            (результат_функции, метрики_производительности)
         """
         metrics = {}
         
@@ -406,8 +403,21 @@ class UniversalBenchmarkRunner:
         # Выполняем функцию
         try:
             result = func(*args, **kwargs)
+        except ValueError as e:
+            # ✅ ОСОБАЯ ОБРАБОТКА ДЛЯ ПОЛНОГО КОНФЛИКТА (единый формат)
+            error_msg = str(e)
+            if "Полный конфликт" in error_msg or "K=1.0" in error_msg or "конфликт" in error_msg.lower():
+                # Стандартизируем сообщение об ошибке
+                standard_warning = "Полный конфликт между источниками (K=1.0)"
+                result = {"warning": standard_warning, "full_conflict": True}
+                metrics["warning"] = standard_warning
+                metrics["full_conflict"] = True
+            else:
+                # Другие ValueError - это ошибки
+                result = {"error": error_msg}
+                metrics["error"] = error_msg
         except Exception as e:
-            # Сохраняем ошибку в метриках
+            # Другие исключения - это ошибки
             result = {"error": str(e)}
             metrics["error"] = str(e)
         
@@ -422,7 +432,7 @@ class UniversalBenchmarkRunner:
         tracemalloc.stop()
         
         # Вычисляем метрики
-        metrics["time_ms"] = (end_time - start_time) * 1000  # миллисекунды
+        metrics["time_ms"] = (end_time - start_time) * 1000
         
         # Потребление памяти
         memory_stats = snapshot2.compare_to(snapshot1, 'lineno')
@@ -580,23 +590,36 @@ class UniversalBenchmarkRunner:
             ""
         ]
         
-        # Проверяем наличие ошибок
-        has_errors = False
+        # Проверяем наличие полного конфликта
+        has_full_conflict = False
+        has_other_errors = False
+        
         for iteration in test_results.get("iterations", []):
             for step in ["step1", "step2", "step3", "step4"]:
-                if step in iteration.get("performance", {}) and "error" in iteration["performance"][step]:
-                    has_errors = True
-                    report_lines.append(f"❌ Ошибка в {step}: {iteration['performance'][step]['error']}")
+                if step in iteration.get("performance", {}):
+                    perf = iteration["performance"][step]
+                    if "error" in perf and "Полный конфликт" in perf["error"]:
+                        has_full_conflict = True
+                        report_lines.append(f"⚠️  {step}: {perf['error']} (K=1.0)")
+                    elif "error" in perf:
+                        has_other_errors = True
+                        report_lines.append(f"❌ Ошибка в {step}: {perf['error']}")
         
-        if has_errors:
-            report_lines.append("\n📈 ПРОИЗВОДИТЕЛЬНОСТЬ (если доступно):")
+        if has_other_errors:
+            report_lines.append(f"\n🔴 ТЕСТ СОДЕРЖИТ ОШИБКИ")
+        elif has_full_conflict:
+            report_lines.append(f"\n⚠️  ТЕСТ ИМЕЕТ ПОЛНЫЙ КОНФЛИКТ (K=1.0)")
+            report_lines.append(f"   Это нормальная ситуация в теории Демпстера-Шейфера.")
+            report_lines.append(f"   Правило Демпстера неприменимо при K=1.0.")
         else:
-            report_lines.append("📈 ПРОИЗВОДИТЕЛЬНОСТЬ:")
+            report_lines.append(f"\n✅ ТЕСТ ВЫПОЛНЕН УСПЕШНО")
         
         report_lines.append("")
         
-        # Добавляем метрики по шагам
+        # Добавляем метрики по шагам (только для успешных шагов)
         perf = aggregated.get("performance", {})
+        
+        # Сначала выводим шаги без ошибок
         for step_name, step_data in perf.items():
             if step_name == "total":
                 continue
@@ -604,8 +627,8 @@ class UniversalBenchmarkRunner:
             time_data = step_data.get("time_ms", {})
             report_lines.append(f"  {step_name.upper():20}:")
             report_lines.append(f"    Время (мс): {time_data.get('mean', 0):.2f} "
-                              f"(min: {time_data.get('min', 0):.2f}, "
-                              f"max: {time_data.get('max', 0):.2f})")
+                            f"(min: {time_data.get('min', 0):.2f}, "
+                            f"max: {time_data.get('max', 0):.2f})")
         
         # Итоговое время
         if "total" in perf:
@@ -621,18 +644,10 @@ class UniversalBenchmarkRunner:
             f.write("\n".join(report_lines))
     
     def run_test_suite(self, test_dir: str, 
-                      iterations: int = 3,
-                      max_tests: Optional[int] = None) -> Dict[str, Any]:
+                  iterations: int = 3,
+                  max_tests: Optional[int] = None) -> Dict[str, Any]:
         """
         Запускает набор тестов из директории.
-        
-        Args:
-            test_dir: Директория с тестовыми файлами (.json)
-            iterations: Количество итераций для каждого теста
-            max_tests: Максимальное количество тестов для запуска
-            
-        Returns:
-            Агрегированные результаты по всем тестам
         """
         print(f"\n🚀 ЗАПУСК НАБОРА ТЕСТОВ")
         print(f"📁 Директория: {test_dir}")
@@ -642,7 +657,7 @@ class UniversalBenchmarkRunner:
         test_files = []
         for root, dirs, files in os.walk(test_dir):
             for file in files:
-                if file.endswith('.json') and file != "statistics.json":  # Пропускаем файл статистики
+                if file.endswith('.json') and file != "statistics.json":
                     test_files.append(os.path.join(root, file))
         
         # Ограничиваем количество тестов если нужно
@@ -653,7 +668,12 @@ class UniversalBenchmarkRunner:
         
         # Запускаем каждый тест
         successful_tests = 0
-        failed_tests = 0
+        tests_with_full_conflict = 0  # Тесты с полным конфликтом
+        tests_with_other_errors = 0   # Тесты с другими ошибками
+        failed_tests = 0              # Тесты, которые не запустились вообще
+        failed_test_names = []
+        conflict_test_names = []
+        other_error_test_names = []
         
         for i, test_file in enumerate(test_files, 1):
             test_name = os.path.splitext(os.path.basename(test_file))[0]
@@ -668,11 +688,12 @@ class UniversalBenchmarkRunner:
                 if "frame_of_discernment" not in test_data or "bba_sources" not in test_data:
                     print(f"   ❌ Неверный формат теста {test_name}")
                     failed_tests += 1
+                    failed_test_names.append(test_name)
                     continue
                 
                 # Определяем alphas для каждого источника
                 sources_count = len(test_data.get("bba_sources", []))
-                alphas = [0.1] * sources_count  # По умолчанию 0.1 для всех
+                alphas = [0.1] * sources_count
                 
                 # Запускаем тест
                 self.run_test(
@@ -682,25 +703,99 @@ class UniversalBenchmarkRunner:
                     alphas=alphas
                 )
                 
-                successful_tests += 1
+                # ✅ ИСПРАВЛЕННЫЙ АНАЛИЗ РЕЗУЛЬТАТОВ ТЕСТА
+                has_full_conflict = False
+                has_other_errors = False
+                has_failed_steps = False
                 
+                # Проверяем результаты последнего запуска
+                if self.results and self.results[-1]["metadata"]["test_name"] == test_name:
+                    test_result = self.results[-1]
+                    
+                    # Проверяем каждый этап на ошибки
+                    for iteration in test_result.get("iterations", []):
+                        for step in ["step1", "step2", "step3", "step4"]:
+                            perf = iteration.get("performance", {}).get(step, {})
+                            
+                            # ✅ ИСПРАВЛЕННАЯ ПРОВЕРКА ПОЛНОГО КОНФЛИКТА
+                            if "warning" in perf and "Полный конфликт" in perf["warning"]:
+                                has_failed_steps = True
+                                has_full_conflict = True
+                            elif "full_conflict" in perf and perf["full_conflict"]:
+                                has_failed_steps = True
+                                has_full_conflict = True
+                            elif "error" in perf:
+                                has_failed_steps = True
+                                has_other_errors = True
+                
+                # Классифицируем результат теста
+                if has_other_errors:
+                    print(f"   ❌ Тест {test_name} содержит ошибки")
+                    tests_with_other_errors += 1
+                    other_error_test_names.append(test_name)
+                elif has_full_conflict:
+                    print(f"   ⚠️  Тест {test_name} имеет полный конфликт (K=1.0)")
+                    successful_tests += 1
+                    tests_with_full_conflict += 1
+                    conflict_test_names.append(test_name)
+                elif has_failed_steps:
+                    print(f"   ⚠️  Тест {test_name} имеет частичные ошибки")
+                    successful_tests += 1
+                    tests_with_other_errors += 1
+                    other_error_test_names.append(test_name)
+                else:
+                    print(f"   ✅ Тест {test_name} выполнен успешно")
+                    successful_tests += 1
+                    
             except json.JSONDecodeError as e:
                 print(f"   ❌ Ошибка JSON в файле {test_name}: {e}")
                 failed_tests += 1
+                failed_test_names.append(test_name)
             except KeyError as e:
                 print(f"   ❌ Отсутствует поле в тесте {test_name}: {e}")
                 failed_tests += 1
+                failed_test_names.append(test_name)
             except Exception as e:
                 print(f"   ❌ Ошибка при выполнении теста {test_name}: {e}")
                 failed_tests += 1
+                failed_test_names.append(test_name)
+        
+        # ✅ ИСПРАВЛЕННАЯ СТАТИСТИКА В КОНЦЕ
+        print(f"\n{'='*60}")
+        print(f"📊 ПРЕДВАРИТЕЛЬНАЯ СТАТИСТИКА:")
+        print(f"{'='*60}")
+        print(f"   Всего тестов: {len(test_files)}")
+        print(f"   ✅ Успешно запущено: {successful_tests}")
+        print(f"   ⚠️  С полным конфликтом: {tests_with_full_conflict}")
+        print(f"   ⚠️  С другими ошибками: {tests_with_other_errors}")
+        print(f"   ❌ Полностью провалено: {failed_tests}")
+        
+        if conflict_test_names:
+            print(f"\nℹ️  Тесты с полным конфликтом (K=1.0):")
+            print(f"   Это нормально для теории Демпстера-Шейфера")
+            print(f"   Правило Демпстера неприменимо при K=1.0")
+            for name in conflict_test_names[:10]:  # Показываем первые 10
+                print(f"   - {name}")
+            if len(conflict_test_names) > 10:
+                print(f"   ... и еще {len(conflict_test_names) - 10} тестов")
+        
+        if other_error_test_names:
+            print(f"\n⚠️  Тесты с другими ошибками:")
+            for name in other_error_test_names[:10]:  # Показываем первые 10
+                print(f"   - {name}")
+            if len(other_error_test_names) > 10:
+                print(f"   ... и еще {len(other_error_test_names) - 10} тестов")
+        
+        if failed_test_names:
+            print(f"\n🔴 Полностью проваленные тесты:")
+            for name in failed_test_names:
+                print(f"   - {name}")
         
         # Создаем итоговый отчет по всем тестам
         summary = self._create_summary_report()
         
         print(f"\n✅ ВЫПОЛНЕНИЕ ЗАВЕРШЕНО")
-        print(f"📊 Успешных тестов: {successful_tests}/{len(test_files)}")
-        print(f"📊 Неудачных тестов: {failed_tests}/{len(test_files)}")
-        print(f"📊 Результаты сохранены в: {self.run_dir}")
+        print(f"📊 Детальный отчет сохранен в: {self.run_dir}/aggregated/final_report.txt")
         
         return summary
     
@@ -717,12 +812,20 @@ class UniversalBenchmarkRunner:
                 "timestamp": datetime.now().isoformat()
             },
             "tests": [],
-            "statistics": {}
+            "statistics": {},
+            "detailed_analysis": {
+                "step_performance": {},
+                "step_success_rates": {},
+                "failed_steps_by_test": {},
+                "error_types": {}
+            }
         }
         
-        # Собираем статистику по всем тестам
+        # Собираем статистику по всем тестам (ВСЕ тесты, включая с конфликтами)
         frame_sizes = []
         source_counts = []
+        
+        # Время по этапам (собираем только успешные выполнения каждого этапа)
         step_times = {
             "step1": [],
             "step2": [],
@@ -731,76 +834,194 @@ class UniversalBenchmarkRunner:
             "total": []
         }
         
-        successful_tests = 0
+        # Для анализа успешности этапов (будем считать из ИСХОДНЫХ данных)
+        step_success_counts = {
+            "step1": 0,
+            "step2": 0,
+            "step3": 0,
+            "step4": 0,
+            "total": 0
+        }
+        
+        # Для сбора информации о неудачных этапах
+        failed_steps_by_test = {}
+        error_types = {}
         
         for test_result in self.results:
             metadata = test_result["metadata"]
-            aggregated = test_result.get("aggregated", {})
-            perf = aggregated.get("performance", {})
+            iterations = test_result.get("iterations", [])
             
-            # Проверяем, был ли тест успешным
-            test_successful = True
-            for iteration in test_result.get("iterations", []):
-                for step in ["step1", "step2", "step3", "step4"]:
-                    if step in iteration.get("performance", {}) and "error" in iteration["performance"][step]:
-                        test_successful = False
-                        break
-                if not test_successful:
-                    break
-            
-            if test_successful:
-                successful_tests += 1
+            # Добавляем информацию о фрейме и источниках (ВСЕ тесты)
+            frame_sizes.append(metadata["frame_size"])
+            source_counts.append(metadata["sources_count"])
             
             # Добавляем информацию о тесте
             test_info = {
                 "test_name": metadata["test_name"],
                 "frame_size": metadata["frame_size"],
                 "sources_count": metadata["sources_count"],
-                "successful": test_successful,
-                "performance": perf
+                "iterations_count": len(iterations)
             }
             summary["tests"].append(test_info)
             
-            # Собираем статистику только для успешных тестов
-            if test_successful:
-                frame_sizes.append(metadata["frame_size"])
-                source_counts.append(metadata["sources_count"])
+            # ✅ ИСПРАВЛЕННЫЙ ПОДХОД: анализируем исходные итерации, а не агрегированные данные
+            test_has_failed_steps = False
+            test_failed_steps = []
+            
+            # Счетчики успешных этапов для этого теста
+            test_step_success = {
+                "step1": 0,
+                "step2": 0,
+                "step3": 0,
+                "step4": 0
+            }
+            
+            # Анализируем каждую итерацию
+            for iteration in iterations:
+                perf = iteration.get("performance", {})
                 
-                # Время по шагам
-                for step in step_times.keys():
+                # Проверяем каждый этап в этой итерации
+                for step in ["step1", "step2", "step3", "step4"]:
                     if step in perf:
-                        time_data = perf[step].get("time_ms", {})
-                        if "mean" in time_data:
-                            step_times[step].append(time_data["mean"])
+                        # Проверяем наличие ошибок/предупреждений
+                        has_warning = "warning" in perf[step] and "Полный конфликт" in perf[step]["warning"]
+                        has_full_conflict_flag = "full_conflict" in perf[step] and perf[step]["full_conflict"]
+                        has_error = "error" in perf[step]
+                        
+                        if has_warning or has_full_conflict_flag:
+                            # Запоминаем только один раз для всего теста
+                            if not test_has_failed_steps:
+                                error_msg = perf[step].get("warning", "Полный конфликт между источниками (K=1.0)")
+                                test_failed_steps.append((step, error_msg))
+                                
+                                if error_msg not in error_types:
+                                    error_types[error_msg] = []
+                                error_types[error_msg].append(f"{metadata['test_name']} (шаг {step[-1]})")
+                        elif has_error:
+                            # Другие ошибки
+                            if not test_has_failed_steps:
+                                error_msg = perf[step]["error"]
+                                test_failed_steps.append((step, error_msg))
+                                
+                                if error_msg not in error_types:
+                                    error_types[error_msg] = []
+                                error_types[error_msg].append(f"{metadata['test_name']} (шаг {step[-1]})")
+                        else:
+                            # Этап успешен в этой итерации
+                            test_step_success[step] += 1
+                            
+                            # Сохраняем время выполнения (только первый раз)
+                            if test_step_success[step] == 1 and "time_ms" in perf[step]:
+                                if step == "step1":
+                                    step_times["step1"].append(perf[step]["time_ms"])
+                                elif step == "step2":
+                                    step_times["step2"].append(perf[step]["time_ms"])
+                                elif step == "step3":
+                                    step_times["step3"].append(perf[step]["time_ms"])
+                                elif step == "step4":
+                                    step_times["step4"].append(perf[step]["time_ms"])
+            
+            # ✅ Определяем, был ли этап успешен для всего теста
+            # Этап считается успешным, если он успешен хотя бы в одной итерации БЕЗ ошибок
+            for step in ["step1", "step2", "step3", "step4"]:
+                if test_step_success[step] > 0:
+                    step_success_counts[step] += 1
+                else:
+                    # Если ни в одной итерации этап не был успешен, значит он провален
+                    if not test_has_failed_steps:
+                        # Но мы уже добавили ошибку выше, так что просто отмечаем
+                        test_has_failed_steps = True
+            
+            # Проверяем, полностью ли успешен тест (все этапы успешны)
+            if (test_step_success["step1"] > 0 and 
+                test_step_success["step2"] > 0 and 
+                test_step_success["step3"] > 0 and 
+                test_step_success["step4"] > 0):
+                step_success_counts["total"] += 1
+                
+                # Добавляем общее время
+                for iteration in iterations:
+                    if "total" in iteration.get("performance", {}):
+                        total_perf = iteration["performance"]["total"]
+                        if "time_total_ms" in total_perf:
+                            step_times["total"].append(total_perf["time_total_ms"])
+                            break  # Берем только первую итерацию
+            
+            # Сохраняем информацию о неудачных этапах для этого теста
+            if test_has_failed_steps:
+                failed_steps_by_test[metadata["test_name"]] = test_failed_steps
         
-        # Вычисляем статистику
+        # Сохраняем детальный анализ
+        summary["detailed_analysis"]["failed_steps_by_test"] = failed_steps_by_test
+        summary["detailed_analysis"]["error_types"] = error_types
+        
+        # Вычисляем статистику успешности этапов
+        total_tests = len(self.results)
+        for step in step_success_counts:
+            success_rate = (step_success_counts[step] / total_tests * 100) if total_tests > 0 else 0
+            summary["detailed_analysis"]["step_success_rates"][step] = {
+                "successful": step_success_counts[step],
+                "total": total_tests,
+                "success_rate": success_rate
+            }
+        
+        # Вычисляем общую статистику (ВСЕ тесты)
         summary["statistics"] = {
-            "successful_tests": successful_tests,
-            "total_tests": len(self.results),
-            "success_rate": successful_tests / len(self.results) * 100 if self.results else 0,
+            "total_tests": total_tests,
+            "tests_with_failed_steps": len(failed_steps_by_test),
+            # Подсчет тестов с полным конфликтом
+            "tests_with_full_conflict": sum(1 for test_name in failed_steps_by_test 
+                                        if any("Полный конфликт" in error_msg 
+                                                for _, error_msg in failed_steps_by_test[test_name])),
             "frame_size": {
                 "min": min(frame_sizes) if frame_sizes else 0,
                 "max": max(frame_sizes) if frame_sizes else 0,
-                "mean": statistics.mean(frame_sizes) if frame_sizes else 0
+                "mean": statistics.mean(frame_sizes) if frame_sizes else 0,
+                "median": statistics.median(frame_sizes) if frame_sizes else 0
             },
             "sources_count": {
                 "min": min(source_counts) if source_counts else 0,
                 "max": max(source_counts) if source_counts else 0,
-                "mean": statistics.mean(source_counts) if source_counts else 0
+                "mean": statistics.mean(source_counts) if source_counts else 0,
+                "median": statistics.median(source_counts) if source_counts else 0
             },
             "performance": {}
         }
         
-        # Статистика по времени
+        # Статистика производительности по каждому этапу (только по успешным выполнениям)
         for step, times in step_times.items():
             if times:
+                step_success_count = step_success_counts.get(step, 0)
+                success_rate = (step_success_count / total_tests * 100) if total_tests > 0 else 0
+                
                 summary["statistics"]["performance"][step] = {
                     "time_ms": {
                         "min": min(times),
                         "max": max(times),
                         "mean": statistics.mean(times),
                         "median": statistics.median(times),
-                        "std": statistics.stdev(times) if len(times) > 1 else 0
+                        "std": statistics.stdev(times) if len(times) > 1 else 0,
+                        "sample_count": len(times),
+                        "success_count": step_success_count,
+                        "success_rate": success_rate
+                    }
+                }
+                summary["detailed_analysis"]["step_performance"][step] = times
+            else:
+                # Если нет успешных выполнений
+                step_success_count = step_success_counts.get(step, 0)
+                success_rate = (step_success_count / total_tests * 100) if total_tests > 0 else 0
+                
+                summary["statistics"]["performance"][step] = {
+                    "time_ms": {
+                        "min": 0,
+                        "max": 0,
+                        "mean": 0,
+                        "median": 0,
+                        "std": 0,
+                        "sample_count": 0,
+                        "success_count": step_success_count,
+                        "success_rate": success_rate
                     }
                 }
         
@@ -813,63 +1034,213 @@ class UniversalBenchmarkRunner:
         self._create_final_text_report(summary)
         
         return summary
-    
+
     def _create_final_text_report(self, summary: Dict[str, Any]):
-        """Создает финальный текстовый отчет."""
+        """Создает финальный текстовый отчет с детальным анализом."""
         metadata = summary["metadata"]
         stats = summary["statistics"]
+        detailed = summary.get("detailed_analysis", {})
+        
+        # Получаем total_tests из метаданных
+        total_tests = metadata['total_tests']
         
         report_lines = [
-            "=" * 70,
+            "=" * 80,
             f"📊 ИТОГОВЫЙ ОТЧЕТ ПО БЕНЧМАРКУ",
             f"📅 Время: {metadata['timestamp']}",
             f"📚 Адаптер: {metadata['adapter']}",
-            f"🧪 Всего тестов: {metadata['total_tests']}",
-            f"✅ Успешных тестов: {stats.get('successful_tests', 0)}",
-            f"📈 Успешность: {stats.get('success_rate', 0):.1f}%",
-            "=" * 70,
+            f"🧪 Всего тестов: {total_tests}",
+            f"⚠️  Тестов с неудачными этапами: {stats.get('tests_with_failed_steps', 0)}",
+            f"⚠️  Тестов с полным конфликтом: {stats.get('tests_with_full_conflict', 0)}",
+            "=" * 80,
             "",
-            "📈 СТАТИСТИКА:",
+            "📈 СТАТИСТИКА ПО ВСЕМ ТЕСТАМ:",
             ""
         ]
         
-        # Статистика по фреймам
+        # Статистика по фреймам (ВСЕ тесты)
         frame_stats = stats.get("frame_size", {})
-        report_lines.append(f"  Размер фрейма (успешные тесты):")
+        report_lines.append(f"  Размер фрейма (все {total_tests} тестов):")
         report_lines.append(f"    Минимальный: {frame_stats.get('min', 0)}")
         report_lines.append(f"    Максимальный: {frame_stats.get('max', 0)}")
         report_lines.append(f"    Средний: {frame_stats.get('mean', 0):.1f}")
+        report_lines.append(f"    Медиана: {frame_stats.get('median', 0):.1f}")
         
-        # Статистика по источникам
+        # Статистика по источникам (ВСЕ тесты)
         source_stats = stats.get("sources_count", {})
-        report_lines.append(f"\n  Количество источников (успешные тесты):")
+        report_lines.append(f"\n  Количество источников (все {total_tests} тестов):")
         report_lines.append(f"    Минимальное: {source_stats.get('min', 0)}")
         report_lines.append(f"    Максимальное: {source_stats.get('max', 0)}")
         report_lines.append(f"    Среднее: {source_stats.get('mean', 0):.1f}")
+        report_lines.append(f"    Медиана: {source_stats.get('median', 0):.1f}")
         
-        # Производительность по шагам
-        perf_stats = stats.get("performance", {})
-        if perf_stats:
-            report_lines.append(f"\n  ПРОИЗВОДИТЕЛЬНОСТЬ (среднее время, мс):")
+        # Успешность этапов из детальных данных
+        success_rates = detailed.get("step_success_rates", {})
+        if success_rates:
+            report_lines.append(f"\n  УСПЕШНОСТЬ ЭТАПОВ (из исходных данных итераций):")
             
             step_names = {
                 "step1": "Исходные Bel/Pl",
                 "step2": "Демпстер",
                 "step3": "Дисконт+Демпстер",
                 "step4": "Ягер",
-                "total": "ИТОГО"
+                "total": "Полностью успешные тесты"
+            }
+            
+            for step, step_name in step_names.items():
+                if step in success_rates:
+                    rate_info = success_rates[step]
+                    successful = rate_info["successful"]
+                    total = rate_info["total"]
+                    success_rate = rate_info["success_rate"]
+                    
+                    if step == "total":
+                        report_lines.append(f"    {step_name:30}: {successful}/{total} тестов ({success_rate:.1f}%)")
+                    else:
+                        report_lines.append(f"    {step_name:30}: {successful}/{total} тестов ({success_rate:.1f}%)")
+        
+        # Производительность по этапам (только успешные выполнения)
+        perf_stats = stats.get("performance", {})
+        if perf_stats:
+            report_lines.append(f"\n  ПРОИЗВОДИТЕЛЬНОСТЬ (среднее время, только успешные выполнения):")
+            
+            step_names = {
+                "step1": "Исходные Bel/Pl",
+                "step2": "Демпстер",
+                "step3": "Дисконт+Демпстер",
+                "step4": "Ягер",
+                "total": "ИТОГО (полностью успешные тесты)"
             }
             
             for step, step_name in step_names.items():
                 if step in perf_stats:
-                    time_data = perf_stats[step].get("time_ms", {})
-                    mean_time = time_data.get("mean", 0)
-                    report_lines.append(f"    {step_name:20}: {mean_time:.2f} мс")
+                    time_data = perf_stats[step]["time_ms"]
+                    mean_time = time_data["mean"]
+                    sample_count = time_data["sample_count"]
+                    success_count = time_data.get("success_count", sample_count)
+                    success_rate = time_data["success_rate"]
+                    
+                    if step == "total":
+                        report_lines.append(f"    {step_name:30}: {mean_time:.2f} мс (по {sample_count} тестам, {success_rate:.1f}%)")
+                    elif sample_count > 0:
+                        # ✅ ИСПРАВЛЕНО: используем total_tests из метаданных
+                        report_lines.append(f"    {step_name:30}: {mean_time:.2f} мс (по {sample_count} тестам, {success_count}/{total_tests} успешно, {success_rate:.1f}%)")
+                    else:
+                        # ✅ ИСПРАВЛЕНО: используем total_tests из метаданных
+                        report_lines.append(f"    {step_name:30}: НЕТ УСПЕШНЫХ ВЫПОЛНЕНИЙ (0/{total_tests})")
+        
+        # ДЕТАЛЬНЫЙ АНАЛИЗ НЕУДАЧНЫХ ЭТАПОВ
+        failed_steps = detailed.get("failed_steps_by_test", {})
+        error_types = detailed.get("error_types", {})
+        
+        if failed_steps:
+            report_lines.append(f"\n{'='*80}")
+            report_lines.append(f"🔍 ДЕТАЛЬНЫЙ АНАЛИЗ НЕУДАЧНЫХ ЭТАПОВ:")
+            report_lines.append(f"{'='*80}")
+            
+            # Группируем по типу ошибки
+            if error_types:
+                report_lines.append(f"\n  РАСПРЕДЕЛЕНИЕ ОШИБОК ПО ТИПУ:")
+                for error_msg, tests in error_types.items():
+                    report_lines.append(f"    ❌ '{error_msg}':")
+                    # Убираем дубликаты
+                    unique_tests = sorted(set(tests))
+                    for test_info in unique_tests[:10]:  # Показываем первые 10
+                        report_lines.append(f"        - {test_info}")
+                    if len(unique_tests) > 10:
+                        report_lines.append(f"        ... и еще {len(unique_tests) - 10} тестов")
+            
+            # По тестам с указанием конкретных этапов
+            report_lines.append(f"\n  НЕУДАЧНЫЕ ЭТАПЫ ПО ТЕСТАМ:")
+            for test_name, failed_steps_list in failed_steps.items():
+                if failed_steps_list:
+                    report_lines.append(f"\n    📄 Тест: {test_name}")
+                    for step_name, error_msg in failed_steps_list:
+                        step_display = {
+                            "step1": "Исходные Bel/Pl",
+                            "step2": "Демпстер",
+                            "step3": "Дисконт+Демпстер",
+                            "step4": "Ягер"
+                        }.get(step_name, step_name)
+                        
+                        # Сокращаем длинные сообщения об ошибках
+                        if len(error_msg) > 80:
+                            error_msg = error_msg[:77] + "..."
+                        
+                        report_lines.append(f"      ❌ {step_display}: {error_msg}")
+        
+        elif stats.get('tests_with_failed_steps', 0) == 0:
+            report_lines.append(f"\n{'='*80}")
+            report_lines.append(f"✅ ВСЕ ЭТАПЫ ВСЕХ ТЕСТОВ ВЫПОЛНЕНЫ УСПЕШНО!")
+            report_lines.append(f"{'='*80}")
+        
+        # Сводка по производительности
+        if perf_stats and "step1" in perf_stats and "step2" in perf_stats:
+            report_lines.append(f"\n{'='*80}")
+            report_lines.append(f"📊 СВОДКА ПО ПРОИЗВОДИТЕЛЬНОСТИ:")
+            report_lines.append(f"{'='*80}")
+            
+            total_mean_time = 0
+            total_successful_steps = 0
+            
+            for step in ["step1", "step2", "step3", "step4"]:
+                if step in perf_stats:
+                    time_data = perf_stats[step]["time_ms"]
+                    if time_data["sample_count"] > 0:
+                        total_mean_time += time_data["mean"]
+                        total_successful_steps += 1
+            
+            if total_successful_steps > 0:
+                avg_time_per_step = total_mean_time / total_successful_steps
+                report_lines.append(f"  Среднее время на успешный этап: {avg_time_per_step:.2f} мс")
+            
+            # Время для полностью успешных тестов
+            if "total" in perf_stats and perf_stats["total"]["time_ms"]["sample_count"] > 0:
+                total_time = perf_stats["total"]["time_ms"]["mean"]
+                report_lines.append(f"  Среднее время полного теста: {total_time:.2f} мс")
+        
+        # Заключение
+        report_lines.append(f"\n{'='*80}")
+        report_lines.append(f"🏁 ЗАКЛЮЧЕНИЕ:")
+        report_lines.append(f"{'='*80}")
+        
+        failed_tests = stats.get('tests_with_failed_steps', 0)
+        conflict_tests = stats.get('tests_with_full_conflict', 0)
+        successful_tests = total_tests - failed_tests
+        
+        if failed_tests == 0:
+            report_lines.append(f"✅ ВСЕ {total_tests} ТЕСТОВ ВЫПОЛНЕНЫ ПОЛНОСТЬЮ УСПЕШНО!")
+        elif conflict_tests > 0 and failed_tests == conflict_tests:
+            # Все неудачи - только полные конфликты (это нормально)
+            report_lines.append(f"⚠️  НОРМАЛЬНЫЙ РЕЗУЛЬТАТ: {successful_tests}/{total_tests} тестов успешны")
+            report_lines.append(f"   {conflict_tests} тестов имеют полный конфликт (K=1.0) - это ожидаемо для Демпстера")
+        else:
+            success_rate = (successful_tests / total_tests * 100) if total_tests > 0 else 0
+            report_lines.append(f"🔴 ТРЕБУЕТСЯ АНАЛИЗ: {success_rate:.1f}% тестов успешны")
+            if conflict_tests > 0:
+                report_lines.append(f"   Из них {conflict_tests} тестов с полным конфликтом (K=1.0)")
+        
+        report_lines.append(f"\n📊 Результаты сохранены в: {self.run_dir}")
         
         # Сохраняем отчет
-        report_file = os.path.join(self.run_dir, "aggregated", "final_report.txt")
-        with open(report_file, 'w', encoding='utf-8') as f:
+        report_path = os.path.join(self.run_dir, "aggregated", "final_report.txt")
+        with open(report_path, 'w', encoding='utf-8') as f:
             f.write("\n".join(report_lines))
         
-        # Также выводим в консоль
-        print("\n" + "\n".join(report_lines))
+        # Также выводим краткую версию в консоль
+        console_lines = [
+            "\n" + "=" * 60,
+            "📊 ИТОГОВАЯ СТАТИСТИКА:",
+            "=" * 60,
+            f"Всего тестов: {total_tests}",
+            f"Успешных: {successful_tests}",
+            f"С полным конфликтом: {conflict_tests}",
+            f"С другими ошибками: {failed_tests - conflict_tests}"
+        ]
+        
+        if failed_tests == 0:
+            console_lines.append("✅ ВСЕ ТЕСТЫ УСПЕШНЫ!")
+        elif conflict_tests > 0:
+            console_lines.append(f"⚠️  {conflict_tests} тестов с полным конфликтом (K=1.0)")
+        
+        print("\n".join(console_lines))
