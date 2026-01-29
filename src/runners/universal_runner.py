@@ -55,20 +55,11 @@ class UniversalBenchmarkRunner:
         print(f"📁 Результаты будут сохранены в: {self.run_dir}")
     
     def run_test(self, test_data: Dict[str, Any], 
-                 test_name: str,
-                 iterations: int = 3,
-                 alphas: Optional[List[float]] = None) -> Dict[str, Any]:
+             test_name: str,
+             iterations: int = 3,
+             alphas: Optional[List[float]] = None) -> Dict[str, Any]:
         """
         Запускает один тест.
-        
-        Args:
-            test_data: Данные теста в формате DASS
-            test_name: Имя теста (для сохранения)
-            iterations: Количество итераций
-            alphas: Коэффициенты дисконтирования для каждого источника
-            
-        Returns:
-            Результаты теста
         """
         print(f"\n🧪 Запуск теста: {test_name}")
         print(f"   Итераций: {iterations}")
@@ -76,7 +67,7 @@ class UniversalBenchmarkRunner:
         # Инициализация результатов
         test_results = {
             "metadata": {
-                "test_name": test_name,
+                "test_name": test_name,  # ✅ СОХРАНЯЕМ ИМЯ ТЕСТА
                 "adapter": self.adapter_name,
                 "iterations": iterations,
                 "timestamp": datetime.now().isoformat(),
@@ -90,10 +81,10 @@ class UniversalBenchmarkRunner:
         # Загружаем данные через адаптер
         loaded_data = self.adapter.load_from_dass(test_data)
         
-        # Определяем коэффициенты дисконтирования (по умолчанию 0.1 для всех)
+        # Определяем коэффициенты дисконтирования
         if alphas is None:
             sources_count = self.adapter.get_sources_count(loaded_data)
-            alphas = [0.1] * sources_count  # По умолчанию все 0.1
+            alphas = [0.1] * sources_count
         
         # Выполняем итерации
         for i in range(iterations):
@@ -103,13 +94,14 @@ class UniversalBenchmarkRunner:
                 loaded_data=loaded_data,
                 test_data=test_data,
                 iteration_num=i+1,
-                alphas=alphas
+                alphas=alphas,
+                test_name=test_name  # ✅ ПЕРЕДАЕМ ИМЯ ТЕСТА
             )
             
             test_results["iterations"].append(iteration_results)
             print(" ✓")
         
-        # Агрегируем результаты итераций
+        # Агрегируем результаты
         test_results["aggregated"] = self._aggregate_iteration_results(
             test_results["iterations"]
         )
@@ -123,15 +115,13 @@ class UniversalBenchmarkRunner:
         return test_results
     
     def _run_single_iteration(self, 
-                            loaded_data: Any,
-                            test_data: Dict[str, Any],
-                            iteration_num: int,
-                            alphas: List[float]) -> Dict[str, Any]:
+                         loaded_data: Any,
+                         test_data: Dict[str, Any],
+                         iteration_num: int,
+                         alphas: List[float],
+                         test_name: str = "") -> Dict[str, Any]:  # ✅ ДОБАВЛЯЕМ test_name
         """
         Выполняет одну итерацию теста.
-        
-        Returns:
-            Результаты итерации с метриками производительности
         """
         iteration_results = {
             "iteration": iteration_num,
@@ -142,7 +132,9 @@ class UniversalBenchmarkRunner:
         step1_results, step1_metrics = self._measure_performance(
             self._execute_step1,
             loaded_data,
-            step_name="step1_original"
+            step_name="step1_original",
+            test_name=test_name,           # ✅ ПЕРЕДАЕМ ИМЯ ТЕСТА
+            iteration=iteration_num        # ✅ ПЕРЕДАЕМ НОМЕР ИТЕРАЦИИ
         )
         iteration_results["step1"] = step1_results
         iteration_results["performance"]["step1"] = step1_metrics
@@ -151,7 +143,9 @@ class UniversalBenchmarkRunner:
         step2_results, step2_metrics = self._measure_performance(
             self._execute_step2,
             loaded_data,
-            step_name="step2_dempster"
+            step_name="step2_dempster",
+            test_name=test_name,           # ✅ ПЕРЕДАЕМ ИМЯ ТЕСТА
+            iteration=iteration_num        # ✅ ПЕРЕДАЕМ НОМЕР ИТЕРАЦИИ
         )
         iteration_results["step2"] = step2_results
         iteration_results["performance"]["step2"] = step2_metrics
@@ -161,7 +155,9 @@ class UniversalBenchmarkRunner:
             self._execute_step3,
             loaded_data,
             alphas,
-            step_name="step3_discount_dempster"
+            step_name="step3_discount_dempster",
+            test_name=test_name,           # ✅ ПЕРЕДАЕМ ИМЯ ТЕСТА
+            iteration=iteration_num        # ✅ ПЕРЕДАЕМ НОМЕР ИТЕРАЦИИ
         )
         iteration_results["step3"] = step3_results
         iteration_results["performance"]["step3"] = step3_metrics
@@ -170,7 +166,9 @@ class UniversalBenchmarkRunner:
         step4_results, step4_metrics = self._measure_performance(
             self._execute_step4,
             loaded_data,
-            step_name="step4_yager"
+            step_name="step4_yager",
+            test_name=test_name,           # ✅ ПЕРЕДАЕМ ИМЯ ТЕСТА
+            iteration=iteration_num        # ✅ ПЕРЕДАЕМ НОМЕР ИТЕРАЦИИ
         )
         iteration_results["step4"] = step4_results
         iteration_results["performance"]["step4"] = step4_metrics
@@ -660,92 +658,103 @@ class UniversalBenchmarkRunner:
                 if file.endswith('.json') and file != "statistics.json":
                     test_files.append(os.path.join(root, file))
         
-        # Ограничиваем количество тестов если нужно
         if max_tests and max_tests < len(test_files):
             test_files = test_files[:max_tests]
         
         print(f"📄 Найдено тестов: {len(test_files)}")
         
-        # Запускаем каждый тест
+        # Статистика
         successful_tests = 0
-        tests_with_full_conflict = 0  # Тесты с полным конфликтом
-        tests_with_other_errors = 0   # Тесты с другими ошибками
-        failed_tests = 0              # Тесты, которые не запустились вообще
-        failed_test_names = []
+        tests_with_full_conflict = 0
+        tests_with_other_errors = 0
+        failed_tests = 0
+        
+        # Списки для детализации
+        successful_test_names = []
         conflict_test_names = []
         other_error_test_names = []
+        failed_test_names = []
         
         for i, test_file in enumerate(test_files, 1):
             test_name = os.path.splitext(os.path.basename(test_file))[0]
             print(f"\n[{i}/{len(test_files)}] Тест: {test_name}")
             
             try:
-                # Загружаем тестовые данные
                 with open(test_file, 'r', encoding='utf-8') as f:
                     test_data = json.load(f)
                 
-                # Проверяем обязательные поля
                 if "frame_of_discernment" not in test_data or "bba_sources" not in test_data:
                     print(f"   ❌ Неверный формат теста {test_name}")
                     failed_tests += 1
                     failed_test_names.append(test_name)
                     continue
                 
-                # Определяем alphas для каждого источника
                 sources_count = len(test_data.get("bba_sources", []))
                 alphas = [0.1] * sources_count
                 
                 # Запускаем тест
-                self.run_test(
+                test_result = self.run_test(
                     test_data=test_data,
                     test_name=test_name,
                     iterations=iterations,
                     alphas=alphas
                 )
                 
-                # ✅ ИСПРАВЛЕННЫЙ АНАЛИЗ РЕЗУЛЬТАТОВ ТЕСТА
-                has_full_conflict = False
-                has_other_errors = False
-                has_failed_steps = False
+                # ✅ ИСПРАВЛЕННЫЙ АНАЛИЗ РЕЗУЛЬТАТОВ
+                test_has_full_conflict = False
+                test_has_other_errors = False
                 
-                # Проверяем результаты последнего запуска
-                if self.results and self.results[-1]["metadata"]["test_name"] == test_name:
-                    test_result = self.results[-1]
-                    
-                    # Проверяем каждый этап на ошибки
-                    for iteration in test_result.get("iterations", []):
-                        for step in ["step1", "step2", "step3", "step4"]:
-                            perf = iteration.get("performance", {}).get(step, {})
+                iterations_data = test_result.get("iterations", [])
+                
+                for iteration in iterations_data:
+                    # Проверяем каждый шаг
+                    for step_key in ["step1", "step2", "step3", "step4"]:
+                        step_data = iteration.get(step_key, {})
+                        
+                        # Проверяем step_data на ошибки
+                        if isinstance(step_data, dict) and "error" in step_data:
+                            error_msg = str(step_data["error"]).lower()
+                            if any(keyword in error_msg for keyword in 
+                                ["полный конфликт", "full conflict", "k=1.0", "конфликт между источниками"]):
+                                test_has_full_conflict = True
+                            else:
+                                test_has_other_errors = True
+                        
+                        # Проверяем performance метрики
+                        perf_data = iteration.get("performance", {}).get(step_key, {})
+                        if isinstance(perf_data, dict):
+                            if "error" in perf_data:
+                                error_msg = str(perf_data["error"]).lower()
+                                if any(keyword in error_msg for keyword in 
+                                    ["полный конфликт", "full conflict", "k=1.0", "конфликт между источниками"]):
+                                    test_has_full_conflict = True
+                                else:
+                                    test_has_other_errors = True
                             
-                            # ✅ ИСПРАВЛЕННАЯ ПРОВЕРКА ПОЛНОГО КОНФЛИКТА
-                            if "warning" in perf and "Полный конфликт" in perf["warning"]:
-                                has_failed_steps = True
-                                has_full_conflict = True
-                            elif "full_conflict" in perf and perf["full_conflict"]:
-                                has_failed_steps = True
-                                has_full_conflict = True
-                            elif "error" in perf:
-                                has_failed_steps = True
-                                has_other_errors = True
+                            # Также проверяем warning
+                            if "warning" in perf_data:
+                                warning_msg = str(perf_data["warning"]).lower()
+                                if any(keyword in warning_msg for keyword in 
+                                    ["полный конфликт", "full conflict", "k=1.0"]):
+                                    test_has_full_conflict = True
                 
-                # Классифицируем результат теста
-                if has_other_errors:
+                # ✅ ПРАВИЛЬНАЯ КЛАССИФИКАЦИЯ ТЕСТА
+                if test_has_other_errors:
+                    # Другие ошибки (не полный конфликт)
                     print(f"   ❌ Тест {test_name} содержит ошибки")
                     tests_with_other_errors += 1
                     other_error_test_names.append(test_name)
-                elif has_full_conflict:
+                elif test_has_full_conflict:
+                    # ТОЛЬКО полный конфликт
                     print(f"   ⚠️  Тест {test_name} имеет полный конфликт (K=1.0)")
                     successful_tests += 1
                     tests_with_full_conflict += 1
                     conflict_test_names.append(test_name)
-                elif has_failed_steps:
-                    print(f"   ⚠️  Тест {test_name} имеет частичные ошибки")
-                    successful_tests += 1
-                    tests_with_other_errors += 1
-                    other_error_test_names.append(test_name)
                 else:
+                    # Полностью успешный тест
                     print(f"   ✅ Тест {test_name} выполнен успешно")
                     successful_tests += 1
+                    successful_test_names.append(test_name)
                     
             except json.JSONDecodeError as e:
                 print(f"   ❌ Ошибка JSON в файле {test_name}: {e}")
@@ -760,39 +769,50 @@ class UniversalBenchmarkRunner:
                 failed_tests += 1
                 failed_test_names.append(test_name)
         
-        # ✅ ИСПРАВЛЕННАЯ СТАТИСТИКА В КОНЦЕ
+        # ✅ ИСПРАВЛЕННАЯ СТАТИСТИКА
         print(f"\n{'='*60}")
         print(f"📊 ПРЕДВАРИТЕЛЬНАЯ СТАТИСТИКА:")
         print(f"{'='*60}")
         print(f"   Всего тестов: {len(test_files)}")
-        print(f"   ✅ Успешно запущено: {successful_tests}")
-        print(f"   ⚠️  С полным конфликтом: {tests_with_full_conflict}")
-        print(f"   ⚠️  С другими ошибками: {tests_with_other_errors}")
-        print(f"   ❌ Полностью провалено: {failed_tests}")
+        print(f"   ✅ Успешно выполнено: {successful_tests}")
+        if tests_with_full_conflict > 0:
+            print(f"   ⚠️  Из них с полным конфликтом: {tests_with_full_conflict}")
+        print(f"   ❌ С другими ошибками: {tests_with_other_errors}")
+        print(f"   🔴 Не запустились: {failed_tests}")
         
+        # Детализация
         if conflict_test_names:
             print(f"\nℹ️  Тесты с полным конфликтом (K=1.0):")
             print(f"   Это нормально для теории Демпстера-Шейфера")
             print(f"   Правило Демпстера неприменимо при K=1.0")
-            for name in conflict_test_names[:10]:  # Показываем первые 10
+            for name in conflict_test_names:
                 print(f"   - {name}")
-            if len(conflict_test_names) > 10:
-                print(f"   ... и еще {len(conflict_test_names) - 10} тестов")
         
         if other_error_test_names:
             print(f"\n⚠️  Тесты с другими ошибками:")
-            for name in other_error_test_names[:10]:  # Показываем первые 10
+            for name in other_error_test_names:
                 print(f"   - {name}")
-            if len(other_error_test_names) > 10:
-                print(f"   ... и еще {len(other_error_test_names) - 10} тестов")
         
         if failed_test_names:
-            print(f"\n🔴 Полностью проваленные тесты:")
+            print(f"\n🔴 Тесты, которые не запустились:")
             for name in failed_test_names:
                 print(f"   - {name}")
         
-        # Создаем итоговый отчет по всем тестам
+        # Создаем итоговый отчет
         summary = self._create_summary_report()
+        
+        # ✅ ФИНАЛЬНАЯ СТАТИСТИКА
+        print(f"\n{'='*60}")
+        print(f"📊 ИТОГОВАЯ СТАТИСТИКА:")
+        print(f"{'='*60}")
+        print(f"Всего тестов: {len(test_files)}")
+        print(f"✅ Успешно выполнено: {successful_tests}")
+        if tests_with_full_conflict > 0:
+            print(f"⚠️  Из них с полным конфликтом: {tests_with_full_conflict}")
+        if tests_with_other_errors > 0:
+            print(f"❌ С другими ошибками: {tests_with_other_errors}")
+        if failed_tests > 0:
+            print(f"🔴 Не запустились: {failed_tests}")
         
         print(f"\n✅ ВЫПОЛНЕНИЕ ЗАВЕРШЕНО")
         print(f"📊 Детальный отчет сохранен в: {self.run_dir}/aggregated/final_report.txt")
