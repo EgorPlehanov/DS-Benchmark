@@ -12,6 +12,7 @@ from .universal_runner import UniversalBenchmarkRunner
 from ..profiling.composite_profiler import CompositeProfiler, CompositeProfileResult
 from ..profiling.core.cpu_profiler import CPUProfiler
 from ..profiling.core.memory_profiler import MemoryProfiler
+from ..profiling.core.line_profiler import LineProfiler
 
 
 class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
@@ -91,7 +92,14 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 trace_frames=25,
                 limit=20
             )
-            profilers.extend([cpu_profiler, memory_profiler])
+            line_profiler = LineProfiler(
+                name="line",
+                enabled=True,
+                include_paths=[os.getcwd()],
+                limit=50,
+                line_limit_per_file=30
+            )
+            profilers.extend([cpu_profiler, memory_profiler, line_profiler])
         
         else:
             raise ValueError(f"Неизвестный уровень профилирования: {self.profiling_level}")

@@ -6,6 +6,7 @@
 from .base_profiler import BaseProfiler, ProfileResult, ProfilerState
 from .cpu_profiler import CPUProfiler
 from .memory_profiler import MemoryProfiler
+from .line_profiler import LineProfiler
 
 __all__ = [
     'BaseProfiler',
@@ -13,4 +14,5 @@ __all__ = [
     'ProfilerState',
     'CPUProfiler',
     'MemoryProfiler',
+    'LineProfiler',
 ]
