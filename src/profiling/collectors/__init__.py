@@ -8,5 +8,5 @@ from .system_collector import SystemCollector, create_system_collector, system_c
 __all__ = [
     'SystemCollector',
     'create_system_collector',
-    'system_collector'
+    'system_collector',
 ]

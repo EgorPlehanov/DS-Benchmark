@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Добавляем путь для импорта
 current_file = Path(__file__).resolve()
-project_root = current_file.parent.parent
+project_root = current_file.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.adapters.our_adapter import OurImplementationAdapter
