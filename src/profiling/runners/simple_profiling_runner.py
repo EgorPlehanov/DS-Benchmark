@@ -15,7 +15,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.profiling.artifacts import ArtifactManager, collect_test_metadata
-from src.profiling.collectors import SystemCollector, create_system_collector, ScaleneCollector
+from src.profiling.collectors import SystemCollector, create_system_collector
 from src.adapters.our_adapter import OurImplementationAdapter
 
 
@@ -57,7 +57,6 @@ class SimpleProfilingRunner:
         
         # Создаем SystemCollector
         self.system_collector = SystemCollector(name=f"system_{adapter_name}")
-        self.scalene_collector = ScaleneCollector(name="scalene")
         
         # Инициализируем адаптер ДШ
         self.adapter = self._load_adapter(adapter_name)
