@@ -13,6 +13,7 @@ from ..profiling.composite_profiler import CompositeProfiler, CompositeProfileRe
 from ..profiling.core.cpu_profiler import CPUProfiler
 from ..profiling.core.memory_profiler import MemoryProfiler
 from ..profiling.core.line_profiler import LineProfiler
+from ..profiling.collectors import ScaleneCollector
 
 
 class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
@@ -25,7 +26,8 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                  adapter,
                  results_dir: str = "results/benchmark",
                  profiling_level: str = "medium",
-                 save_raw_profiles: bool = True):
+                 save_raw_profiles: bool = True,
+                 enable_scalene: bool = False):
         """
         Args:
             adapter: Адаптер для тестируемой библиотеки
@@ -37,6 +39,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         
         self.profiling_level = profiling_level
         self.save_raw_profiles = save_raw_profiles
+        self.enable_scalene = enable_scalene
         self.profiler = self._setup_profiler()
         
         # Создаем поддиректории для профилирования
@@ -44,9 +47,15 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         os.makedirs(self.profiling_dir, exist_ok=True)
         os.makedirs(os.path.join(self.profiling_dir, "raw"), exist_ok=True)
         os.makedirs(os.path.join(self.profiling_dir, "reports"), exist_ok=True)
+
+        self.scalene_collector = ScaleneCollector(
+            output_dir=os.path.join(self.profiling_dir, "scalene"),
+            enabled=enable_scalene
+        )
         
         print(f"🔧 ProfilingRunner инициализирован с уровнем: {profiling_level}")
         print(f"📊 Профилировщики: {', '.join(self.profiler.get_enabled_profilers())}")
+        print(f"📈 Scalene: {self.scalene_collector.get_status()}")
     
     def _setup_profiler(self) -> CompositeProfiler:
         """Настраивает композитный профилировщик в зависимости от уровня"""
@@ -145,6 +154,18 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                     'correlations': profile_result.correlations,
                     'profiler_count': len(profile_result.results)
                 }
+
+            if self.enable_scalene and test_name:
+                input_path = self._get_scalene_input_path(test_name)
+                if input_path:
+                    scalene_info = self.scalene_collector.profile_step(
+                        input_path=input_path,
+                        adapter_name=self.adapter_name,
+                        step_name=step_name,
+                        iteration=iteration,
+                        test_name=test_name
+                    )
+                    base_metrics["scalene"] = scalene_info
             
             # ✅ ПРАВИЛЬНАЯ ОБРАБОТКА ОШИБОК
             if 'error' in profile_result.metadata:
@@ -324,6 +345,8 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         }
         
         loaded_data = self.adapter.load_from_dass(test_data)
+
+        self._save_scalene_input(test_name, test_data)
         
         if alphas is None:
             sources_count = self.adapter.get_sources_count(loaded_data)
@@ -351,6 +374,22 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         self.results.append(test_results)
         
         return test_results
+
+    def _save_scalene_input(self, test_name: str, test_data: Dict[str, Any]) -> None:
+        """Сохраняет входные данные теста для scalene."""
+        if not self.enable_scalene:
+            return
+        input_dir = os.path.join(self.profiling_dir, "scalene", "inputs")
+        os.makedirs(input_dir, exist_ok=True)
+        input_path = os.path.join(input_dir, f"{test_name}.json")
+        with open(input_path, "w", encoding="utf-8") as f:
+            json.dump(test_data, f, indent=2, ensure_ascii=False)
+
+    def _get_scalene_input_path(self, test_name: str) -> Optional[str]:
+        if not self.enable_scalene:
+            return None
+        input_path = os.path.join(self.profiling_dir, "scalene", "inputs", f"{test_name}.json")
+        return input_path if os.path.exists(input_path) else None
     
     def cleanup(self):
         """Очистка ресурсов"""
