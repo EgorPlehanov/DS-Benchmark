@@ -6,6 +6,7 @@ ScaleneCollector - запуск scalene для сбора сырых профи�
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import textwrap
@@ -22,10 +23,12 @@ class ScaleneCollector:
 
     def __init__(self,
                  output_dir: Path,
-                 enabled: bool = True):
+                 enabled: bool = True,
+                 include_paths: Optional[List[Path]] = None):
         self.output_dir = Path(output_dir)
         self.enabled = enabled
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.include_paths = [Path(path).resolve() for path in include_paths or []]
 
     def is_available(self) -> bool:
         """Проверяет доступность scalene в PATH."""
@@ -70,6 +73,9 @@ class ScaleneCollector:
             str(html_path),
             str(script_path),
         ]
+        profile_just = self._build_profile_just_regex()
+        if profile_just:
+            args.extend(["--profile-just", profile_just])
         if script_args:
             args.extend(script_args)
 
@@ -189,10 +195,17 @@ class ScaleneCollector:
             """
         )
 
+    def _build_profile_just_regex(self) -> Optional[str]:
+        if not self.include_paths:
+            return None
+        escaped_paths = [re.escape(str(path)) for path in self.include_paths]
+        return "(" + "|".join(escaped_paths) + ")"
+
     def get_status(self) -> Dict[str, Any]:
         """Возвращает статус доступности scalene."""
         return {
             "enabled": self.enabled,
             "available": self.is_available(),
-            "output_dir": str(self.output_dir)
+            "output_dir": str(self.output_dir),
+            "include_paths": [str(path) for path in self.include_paths]
         }

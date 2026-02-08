@@ -7,6 +7,7 @@ import os
 import json
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+from pathlib import Path
 
 from .universal_runner import UniversalBenchmarkRunner
 from ..profiling.composite_profiler import CompositeProfiler, CompositeProfileResult
@@ -50,7 +51,8 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
 
         self.scalene_collector = ScaleneCollector(
             output_dir=os.path.join(self.profiling_dir, "scalene"),
-            enabled=enable_scalene
+            enabled=enable_scalene,
+            include_paths=[Path(os.getcwd()) / "src"]
         )
         
         print(f"🔧 ProfilingRunner инициализирован с уровнем: {profiling_level}")
