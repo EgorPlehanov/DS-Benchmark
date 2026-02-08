@@ -198,8 +198,17 @@ class ScaleneCollector:
     def _build_profile_just_regex(self) -> Optional[str]:
         if not self.include_paths:
             return None
-        escaped_paths = [re.escape(str(path)) for path in self.include_paths]
-        return "(" + "|".join(escaped_paths) + ")"
+        patterns: List[str] = []
+        for path in self.include_paths:
+            raw_path = str(path)
+            posix_path = path.as_posix()
+            patterns.append(re.escape(raw_path))
+            if posix_path != raw_path:
+                patterns.append(re.escape(posix_path))
+            parts = [re.escape(part) for part in path.parts]
+            if parts:
+                patterns.append(r"[\\/]+".join(parts))
+        return "(" + "|".join(patterns) + ")"
 
     def get_status(self) -> Dict[str, Any]:
         """Возвращает статус доступности scalene."""
