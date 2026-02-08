@@ -15,7 +15,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.profiling.artifacts import ArtifactManager, collect_test_metadata
-from src.profiling.collectors import SystemCollector, create_system_collector, MemrayCollector
+from src.profiling.collectors import SystemCollector, create_system_collector
 from src.adapters.our_adapter import OurImplementationAdapter
 
 
@@ -35,9 +35,7 @@ class SimpleProfilingRunner:
                  adapter_name: str = "our",
                  base_dir: str = "results/profiling",
                  run_id: Optional[str] = None,
-                 overwrite: bool = False,
-                 enable_memray: bool = True,
-                 generate_memray_flamegraph: bool = True):
+                 overwrite: bool = False):
         """
         Инициализация раннера.
         
@@ -59,14 +57,6 @@ class SimpleProfilingRunner:
         
         # Создаем SystemCollector
         self.system_collector = SystemCollector(name=f"system_{adapter_name}")
-
-        # Создаем MemrayCollector (опционально)
-        memray_output_dir = self.artifact_manager.run_dir / "profilers" / "memray"
-        self.memray_collector = MemrayCollector(
-            output_dir=memray_output_dir,
-            enabled=enable_memray,
-            generate_flamegraph=generate_memray_flamegraph
-        )
         
         # Инициализируем адаптер ДШ
         self.adapter = self._load_adapter(adapter_name)
@@ -74,7 +64,6 @@ class SimpleProfilingRunner:
         print(f"🚀 SimpleProfilingRunner инициализирован")
         print(f"   Адаптер: {adapter_name}")
         print(f"   Директория: {self.artifact_manager.run_dir}")
-        print(f"   Memray: {self.memray_collector.get_status()}")
     
     def _load_adapter(self, adapter_name: str):
         """Загружает адаптер Демпстера-Шейфера."""
@@ -277,16 +266,11 @@ class SimpleProfilingRunner:
         """
         Выполняет шаг с профилированием и сохраняет метрики.
         """
-        # Выполняем шаг с профилированием (SystemCollector)
-        with self.memray_collector.track(test_name, step_name, iteration) as memray_info:
-            result, metrics = self.system_collector.profile(
-                step_func,
-                loaded_data
-            )
-
-        # Добавляем информацию о memray
-        if metrics is not None:
-            metrics["memray"] = memray_info
+        # Выполняем шаг с профилированием
+        result, metrics = self.system_collector.profile(
+            step_func,
+            loaded_data
+        )
         
         # Сохраняем метрики
         self.artifact_manager.save_metrics(
@@ -582,9 +566,7 @@ class SimpleProfilingRunner:
 def create_profiling_runner(adapter_name: str = "our",
                           base_dir: str = "results/profiling",
                           run_id: Optional[str] = None,
-                          overwrite: bool = False,
-                          enable_memray: bool = True,
-                          generate_memray_flamegraph: bool = True) -> SimpleProfilingRunner:
+                          overwrite: bool = False) -> SimpleProfilingRunner:
     """
     Создает экземпляр SimpleProfilingRunner.
     
@@ -601,7 +583,5 @@ def create_profiling_runner(adapter_name: str = "our",
         adapter_name=adapter_name,
         base_dir=base_dir,
         run_id=run_id,
-        overwrite=overwrite,
-        enable_memray=enable_memray,
-        generate_memray_flamegraph=generate_memray_flamegraph
+        overwrite=overwrite
     )
