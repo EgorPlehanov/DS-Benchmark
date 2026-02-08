@@ -60,7 +60,7 @@ class ScaleneCollector:
 
         timestamp = datetime.now().strftime("%H%M%S")
         html_filename = f"{test_name}_{step_name}_iter{iteration}_{timestamp}.html"
-        html_path = self.output_dir / html_filename
+        html_path = (self.output_dir / html_filename).resolve()
         info["html_path"] = str(html_path)
 
         args = [
@@ -69,6 +69,7 @@ class ScaleneCollector:
             "--memory",
             "--profile-all",
             "--html",
+            "--no-browser",
             "--outfile",
             str(html_path),
             str(script_path),
