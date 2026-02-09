@@ -7,7 +7,6 @@ ScaleneCollector - запуск scalene для сбора сырых профи�
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import subprocess
 import textwrap
@@ -24,12 +23,10 @@ class ScaleneCollector:
 
     def __init__(self,
                  output_dir: Path,
-                 enabled: bool = True,
-                 include_paths: Optional[List[Path]] = None):
+                 enabled: bool = True):
         self.output_dir = Path(output_dir)
         self.enabled = enabled
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.include_paths = [Path(path).resolve() for path in include_paths or []]
 
     def is_available(self) -> bool:
         """Проверяет доступность scalene в PATH."""
@@ -247,40 +244,10 @@ class ScaleneCollector:
             """
         )
 
-    def _build_profile_just_regex(self) -> Optional[str]:
-        if not self.include_paths:
-            return None
-        cwd = Path.cwd().resolve()
-        patterns: List[str] = []
-        for path in self.include_paths:
-            resolved_path = path.resolve()
-            raw_path = str(resolved_path)
-            posix_path = resolved_path.as_posix()
-            base_patterns = {raw_path, posix_path}
-
-            for base in base_patterns:
-                escaped_base = re.escape(base.rstrip("\\/"))
-                patterns.append(f"{escaped_base}(?:[\\\\/]|$)")
-
-            try:
-                relative_path = resolved_path.relative_to(cwd)
-            except ValueError:
-                relative_path = None
-
-            if relative_path:
-                relative_raw = str(relative_path)
-                relative_posix = relative_path.as_posix()
-                relative_patterns = {relative_raw, relative_posix}
-                for base in relative_patterns:
-                    escaped_base = re.escape(base.rstrip("\\/"))
-                    patterns.append(f"(?:^|[\\\\/]){escaped_base}(?:[\\\\/]|$)")
-        return "(" + "|".join(patterns) + ")"
-
     def get_status(self) -> Dict[str, Any]:
         """Возвращает статус доступности scalene."""
         return {
             "enabled": self.enabled,
             "available": self.is_available(),
-            "output_dir": str(self.output_dir),
-            "include_paths": [str(path) for path in self.include_paths]
+            "output_dir": str(self.output_dir)
         }
