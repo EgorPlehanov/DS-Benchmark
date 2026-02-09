@@ -199,6 +199,7 @@ class ScaleneCollector:
     def _build_profile_just_regex(self) -> Optional[str]:
         if not self.include_paths:
             return None
+        cwd = Path.cwd().resolve()
         patterns: List[str] = []
         for path in self.include_paths:
             raw_path = str(path)
@@ -206,9 +207,27 @@ class ScaleneCollector:
             patterns.append(re.escape(raw_path))
             if posix_path != raw_path:
                 patterns.append(re.escape(posix_path))
-            parts = [re.escape(part) for part in path.parts]
+
+            parts = [re.escape(part) for part in path.parts if part]
             if parts:
                 patterns.append(r"[\\/]+".join(parts))
+
+            try:
+                relative_path = path.resolve().relative_to(cwd)
+            except ValueError:
+                relative_path = None
+
+            if relative_path:
+                relative_raw = str(relative_path)
+                relative_posix = relative_path.as_posix()
+                patterns.append(re.escape(relative_raw))
+                if relative_posix != relative_raw:
+                    patterns.append(re.escape(relative_posix))
+                relative_parts = [re.escape(part) for part in relative_path.parts if part]
+                if relative_parts:
+                    patterns.append(r"[\\/]+".join(relative_parts))
+
+            patterns.append(re.escape(path.name))
         return "(" + "|".join(patterns) + ")"
 
     def get_status(self) -> Dict[str, Any]:
