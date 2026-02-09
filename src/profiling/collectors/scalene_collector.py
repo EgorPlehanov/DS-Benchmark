@@ -172,7 +172,7 @@ class ScaleneCollector:
 
 
             def load_adapter(adapter_name: str):
-                if adapter_name == "our":
+                if adapter_name in {"our", "ourimplementation"}:
                     from src.adapters.our_adapter import OurImplementationAdapter
                     return OurImplementationAdapter()
                 raise ValueError(f"Unsupported adapter: {adapter_name}")
