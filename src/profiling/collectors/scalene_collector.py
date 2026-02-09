@@ -69,15 +69,20 @@ class ScaleneCollector:
             "scalene",
             "--cpu",
             "--memory",
-            "--profile-all",
             "--html",
             "--no-browser",
             "--outfile",
             str(html_path),
         ]
         profile_just = self._build_profile_just_regex()
-        if profile_just and self._scalene_supports_profile_just():
+        supports_profile_just = self._scalene_supports_profile_just()
+        if profile_just and supports_profile_just:
+            args.append("--profile-all")
             args.extend(["--profile-just", profile_just])
+        elif self.include_paths:
+            args.append("--reduced-profile")
+        else:
+            args.append("--profile-all")
         args.append(str(script_path))
         if script_args:
             args.extend(script_args)
@@ -193,6 +198,7 @@ class ScaleneCollector:
             project_root = Path.cwd()
             sys.path.insert(0, str(project_root))
 
+            from scalene import profile
             from src.runners.universal_runner import UniversalBenchmarkRunner
 
 
@@ -212,6 +218,7 @@ class ScaleneCollector:
                 raise ValueError(f"Unsupported adapter: {adapter_name}")
 
 
+            @profile
             def run_step(runner, adapter, step_name: str, data, alpha: float) -> None:
                 if step_name == "step1_original":
                     runner._execute_step1(data)
