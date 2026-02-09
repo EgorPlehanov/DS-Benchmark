@@ -30,7 +30,6 @@ class ScaleneCollector:
         self.enabled = enabled
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.include_paths = [Path(path).resolve() for path in include_paths or []]
-        self._supports_profile_just: Optional[bool] = None
 
     def is_available(self) -> bool:
         """Проверяет доступность scalene в PATH."""
@@ -69,20 +68,12 @@ class ScaleneCollector:
             "scalene",
             "--cpu",
             "--memory",
+            "--profile-all",
             "--html",
             "--no-browser",
             "--outfile",
             str(html_path),
         ]
-        profile_just = self._build_profile_just_regex()
-        supports_profile_just = self._scalene_supports_profile_just()
-        if profile_just and supports_profile_just:
-            args.append("--profile-all")
-            args.extend(["--profile-just", profile_just])
-        elif self.include_paths:
-            args.append("--reduced-profile")
-        else:
-            args.append("--profile-all")
         args.append(str(script_path))
         if script_args:
             args.extend(script_args)
@@ -125,27 +116,6 @@ class ScaleneCollector:
 
         return info
 
-    def _scalene_supports_profile_just(self) -> bool:
-        if self._supports_profile_just is not None:
-            return self._supports_profile_just
-        env = dict(os.environ)
-        env.setdefault("PYTHONIOENCODING", "utf-8")
-        try:
-            completed = subprocess.run(
-                ["scalene", "--help"],
-                check=False,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                env=env
-            )
-        except Exception:
-            self._supports_profile_just = False
-            return self._supports_profile_just
-        output = (completed.stdout or "") + (completed.stderr or "")
-        self._supports_profile_just = "--profile-just" in output
-        return self._supports_profile_just
 
     def profile_step(self,
                      input_path: Path,
@@ -219,20 +189,39 @@ class ScaleneCollector:
 
 
             @profile
+            def run_step1(runner, data) -> None:
+                runner._execute_step1(data)
+
+
+            @profile
+            def run_step2(runner, data) -> None:
+                runner._execute_step2(data)
+
+
+            @profile
+            def run_step3(runner, adapter, data, alpha: float) -> None:
+                sources_count = adapter.get_sources_count(data)
+                alphas = [alpha] * sources_count
+                runner._execute_step3(data, alphas)
+
+
+            @profile
+            def run_step4(runner, data) -> None:
+                runner._execute_step4(data)
+
+
             def run_step(runner, adapter, step_name: str, data, alpha: float) -> None:
                 if step_name == "step1_original":
-                    runner._execute_step1(data)
+                    run_step1(runner, data)
                     return
                 if step_name == "step2_dempster":
-                    runner._execute_step2(data)
+                    run_step2(runner, data)
                     return
                 if step_name == "step3_discount_dempster":
-                    sources_count = adapter.get_sources_count(data)
-                    alphas = [alpha] * sources_count
-                    runner._execute_step3(data, alphas)
+                    run_step3(runner, adapter, data, alpha)
                     return
                 if step_name == "step4_yager":
-                    runner._execute_step4(data)
+                    run_step4(runner, data)
                     return
                 raise ValueError(f"Unknown step: {step_name}")
 
