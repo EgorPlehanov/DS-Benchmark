@@ -88,7 +88,7 @@ def main():
 
     parser.add_argument('--scalene-include',
                        nargs='*',
-                       default=['src'],
+                       default=None,
                        help=('Список директорий для фильтрации Scalene (по умолчанию: src). '
                              'Если указать параметр без значений, фильтры отключаются.'))
     
