@@ -30,6 +30,7 @@ class ScaleneCollector:
         self.enabled = enabled
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.include_paths = [Path(path).resolve() for path in include_paths or []]
+        self._supports_profile_just: Optional[bool] = None
 
     def is_available(self) -> bool:
         """Проверяет доступность scalene в PATH."""
@@ -75,7 +76,7 @@ class ScaleneCollector:
             str(html_path),
         ]
         profile_just = self._build_profile_just_regex()
-        if profile_just:
+        if profile_just and self._scalene_supports_profile_just():
             args.extend(["--profile-just", profile_just])
         args.append(str(script_path))
         if script_args:
@@ -118,6 +119,28 @@ class ScaleneCollector:
             info["error"] = str(exc)
 
         return info
+
+    def _scalene_supports_profile_just(self) -> bool:
+        if self._supports_profile_just is not None:
+            return self._supports_profile_just
+        env = dict(os.environ)
+        env.setdefault("PYTHONIOENCODING", "utf-8")
+        try:
+            completed = subprocess.run(
+                ["scalene", "--help"],
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env
+            )
+        except Exception:
+            self._supports_profile_just = False
+            return self._supports_profile_just
+        output = (completed.stdout or "") + (completed.stderr or "")
+        self._supports_profile_just = "--profile-just" in output
+        return self._supports_profile_just
 
     def profile_step(self,
                      input_path: Path,
