@@ -85,6 +85,12 @@ def main():
                        action='store_true',
                        default=False,
                        help='Включить scalene профилирование (если доступно)')
+
+    parser.add_argument('--scalene-include',
+                       nargs='*',
+                       default=['src'],
+                       help=('Список директорий для фильтрации Scalene (по умолчанию: src). '
+                             'Если указать параметр без значений, фильтры отключаются.'))
     
     parser.add_argument('--save-raw',
                        action='store_true',
@@ -122,7 +128,8 @@ def main():
             results_dir=args.output_dir,
             profiling_level=args.profiling,
             save_raw_profiles=args.save_raw,
-            enable_scalene=args.scalene
+            enable_scalene=args.scalene,
+            scalene_include_paths=args.scalene_include
         )
         
         # Запускаем тесты

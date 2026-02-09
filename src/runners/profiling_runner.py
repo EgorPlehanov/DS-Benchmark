@@ -28,7 +28,8 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                  results_dir: str = "results/benchmark",
                  profiling_level: str = "medium",
                  save_raw_profiles: bool = True,
-                 enable_scalene: bool = False):
+                 enable_scalene: bool = False,
+                 scalene_include_paths: Optional[List[str]] = None):
         """
         Args:
             adapter: Адаптер для тестируемой библиотеки
@@ -49,10 +50,15 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         os.makedirs(os.path.join(self.profiling_dir, "raw"), exist_ok=True)
         os.makedirs(os.path.join(self.profiling_dir, "reports"), exist_ok=True)
 
+        if scalene_include_paths is None:
+            include_paths = [Path(os.getcwd()) / "src"]
+        else:
+            include_paths = [Path(path) for path in scalene_include_paths]
+
         self.scalene_collector = ScaleneCollector(
             output_dir=os.path.join(self.profiling_dir, "scalene"),
             enabled=enable_scalene,
-            include_paths=[Path(os.getcwd()) / "src"]
+            include_paths=include_paths
         )
         
         print(f"🔧 ProfilingRunner инициализирован с уровнем: {profiling_level}")
