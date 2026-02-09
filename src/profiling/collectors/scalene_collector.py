@@ -202,32 +202,27 @@ class ScaleneCollector:
         cwd = Path.cwd().resolve()
         patterns: List[str] = []
         for path in self.include_paths:
-            raw_path = str(path)
-            posix_path = path.as_posix()
-            patterns.append(re.escape(raw_path))
-            if posix_path != raw_path:
-                patterns.append(re.escape(posix_path))
+            resolved_path = path.resolve()
+            raw_path = str(resolved_path)
+            posix_path = resolved_path.as_posix()
+            base_patterns = {raw_path, posix_path}
 
-            parts = [re.escape(part) for part in path.parts if part]
-            if parts:
-                patterns.append(r"[\\/]+".join(parts))
+            for base in base_patterns:
+                escaped_base = re.escape(base.rstrip("\\/"))
+                patterns.append(f"{escaped_base}(?:[\\\\/]|$)")
 
             try:
-                relative_path = path.resolve().relative_to(cwd)
+                relative_path = resolved_path.relative_to(cwd)
             except ValueError:
                 relative_path = None
 
             if relative_path:
                 relative_raw = str(relative_path)
                 relative_posix = relative_path.as_posix()
-                patterns.append(re.escape(relative_raw))
-                if relative_posix != relative_raw:
-                    patterns.append(re.escape(relative_posix))
-                relative_parts = [re.escape(part) for part in relative_path.parts if part]
-                if relative_parts:
-                    patterns.append(r"[\\/]+".join(relative_parts))
-
-            patterns.append(re.escape(path.name))
+                relative_patterns = {relative_raw, relative_posix}
+                for base in relative_patterns:
+                    escaped_base = re.escape(base.rstrip("\\/"))
+                    patterns.append(f"(?:^|[\\\\/]){escaped_base}(?:[\\\\/]|$)")
         return "(" + "|".join(patterns) + ")"
 
     def get_status(self) -> Dict[str, Any]:
