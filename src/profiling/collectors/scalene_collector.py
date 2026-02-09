@@ -81,8 +81,29 @@ class ScaleneCollector:
         args.append(str(script_path))
 
         try:
-            subprocess.run(args, check=True, capture_output=True, text=True)
+            completed = subprocess.run(args, check=True, capture_output=True, text=True)
+            if completed.stdout:
+                (self.output_dir / f"{html_filename}.stdout.txt").write_text(
+                    completed.stdout,
+                    encoding="utf-8"
+                )
+            if completed.stderr:
+                (self.output_dir / f"{html_filename}.stderr.txt").write_text(
+                    completed.stderr,
+                    encoding="utf-8"
+                )
         except Exception as exc:  # noqa: BLE001 - сохраняем ошибку профилирования
+            if isinstance(exc, subprocess.CalledProcessError):
+                if exc.stdout:
+                    (self.output_dir / f"{html_filename}.stdout.txt").write_text(
+                        exc.stdout,
+                        encoding="utf-8"
+                    )
+                if exc.stderr:
+                    (self.output_dir / f"{html_filename}.stderr.txt").write_text(
+                        exc.stderr,
+                        encoding="utf-8"
+                    )
             info["error"] = str(exc)
 
         return info
