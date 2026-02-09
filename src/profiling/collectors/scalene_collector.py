@@ -6,6 +6,7 @@ ScaleneCollector - запуск scalene для сбора сырых профи�
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -81,7 +82,15 @@ class ScaleneCollector:
             args.extend(script_args)
 
         try:
-            completed = subprocess.run(args, check=True, capture_output=True, text=True)
+            env = dict(os.environ)
+            env.setdefault("PYTHONIOENCODING", "utf-8")
+            completed = subprocess.run(
+                args,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=env
+            )
             if completed.stdout:
                 (self.output_dir / f"{html_filename}.stdout.txt").write_text(
                     completed.stdout,
