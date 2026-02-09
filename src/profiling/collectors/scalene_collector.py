@@ -72,13 +72,13 @@ class ScaleneCollector:
             "--no-browser",
             "--outfile",
             str(html_path),
-            str(script_path),
         ]
         profile_just = self._build_profile_just_regex()
         if profile_just:
             args.extend(["--profile-just", profile_just])
         if script_args:
             args.extend(script_args)
+        args.append(str(script_path))
 
         try:
             subprocess.run(args, check=True, capture_output=True, text=True)
