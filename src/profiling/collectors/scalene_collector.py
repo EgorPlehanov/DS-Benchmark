@@ -24,7 +24,7 @@ class ScaleneCollector:
     def __init__(self,
                  output_dir: Path,
                  enabled: bool = True,
-                 profile_only_dir: str = "src/core"):
+                 profile_only_dir: str = "None"):
         self.output_dir = Path(output_dir)
         self.enabled = enabled
         self.profile_only_dir = Path(profile_only_dir)
@@ -141,7 +141,7 @@ class ScaleneCollector:
                      iteration: int,
                      test_name: str,
                      alpha: float = 0.1,
-                     repeat: int = 30) -> Dict[str, Any]:
+                     repeat: int = 1000) -> Dict[str, Any]:
         """
         Запускает scalene для одного шага ДШ через временный скрипт.
         """
