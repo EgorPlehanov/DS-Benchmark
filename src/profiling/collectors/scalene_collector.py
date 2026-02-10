@@ -23,14 +23,34 @@ class ScaleneCollector:
 
     def __init__(self,
                  output_dir: Path,
-                 enabled: bool = True):
+                 enabled: bool = True,
+                 profile_only_dir: str = "src/core"):
         self.output_dir = Path(output_dir)
         self.enabled = enabled
+        self.profile_only_dir = Path(profile_only_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def is_available(self) -> bool:
         """Проверяет доступность scalene в PATH."""
         return shutil.which("scalene") is not None
+
+    def _get_profile_only_filters(self) -> List[str]:
+        """Возвращает фильтры для --profile-only из python-файлов указанной папки."""
+        if not self.profile_only_dir.exists():
+            return []
+
+        python_files = sorted(self.profile_only_dir.glob("*.py"))
+        if not python_files:
+            return []
+
+        # Scalene принимает подстроки через запятую.
+        # Передаем и относительный путь, и имя файла, чтобы надежнее матчить на разных ОС.
+        filters: List[str] = []
+        for py_file in python_files:
+            rel_path = py_file.as_posix()
+            filters.append(rel_path)
+            filters.append(py_file.name)
+        return filters
 
     def profile_script(self,
                        script_path: Path,
@@ -71,6 +91,12 @@ class ScaleneCollector:
             "--outfile",
             str(html_path),
         ]
+
+        profile_only_filters = self._get_profile_only_filters()
+        if profile_only_filters:
+            args.extend(["--profile-only", ",".join(profile_only_filters)])
+            info["profile_only"] = profile_only_filters
+
         args.append(str(script_path))
         if script_args:
             args.extend(script_args)
@@ -120,7 +146,8 @@ class ScaleneCollector:
                      step_name: str,
                      iteration: int,
                      test_name: str,
-                     alpha: float = 0.1) -> Dict[str, Any]:
+                     alpha: float = 0.1,
+                     repeat: int = 30) -> Dict[str, Any]:
         """
         Запускает scalene для одного шага ДШ через временный скрипт.
         """
@@ -142,6 +169,7 @@ class ScaleneCollector:
                     "--step", step_name,
                     "--input", str(input_path),
                     "--alpha", str(alpha),
+                    "--repeat", str(repeat),
                 ],
                 test_name=test_name,
                 step_name=step_name,
@@ -165,7 +193,6 @@ class ScaleneCollector:
             project_root = Path.cwd()
             sys.path.insert(0, str(project_root))
 
-            from scalene import profile
             from src.runners.universal_runner import UniversalBenchmarkRunner
 
 
@@ -175,6 +202,7 @@ class ScaleneCollector:
                 parser.add_argument("--step", required=True, help="Step name")
                 parser.add_argument("--input", required=True, help="Path to DASS test JSON")
                 parser.add_argument("--alpha", type=float, default=0.1, help="Discounting alpha for step3")
+                parser.add_argument("--repeat", type=int, default=30, help="Repeat count to ensure enough profiling samples")
                 return parser.parse_args()
 
 
@@ -185,24 +213,20 @@ class ScaleneCollector:
                 raise ValueError(f"Unsupported adapter: {adapter_name}")
 
 
-            @profile
             def run_step1(runner, data) -> None:
                 runner._execute_step1(data)
 
 
-            @profile
             def run_step2(runner, data) -> None:
                 runner._execute_step2(data)
 
 
-            @profile
             def run_step3(runner, adapter, data, alpha: float) -> None:
                 sources_count = adapter.get_sources_count(data)
                 alphas = [alpha] * sources_count
                 runner._execute_step3(data, alphas)
 
 
-            @profile
             def run_step4(runner, data) -> None:
                 runner._execute_step4(data)
 
@@ -234,7 +258,8 @@ class ScaleneCollector:
                 temp_dir = tempfile.mkdtemp(prefix="scalene_runner_")
                 try:
                     runner = UniversalBenchmarkRunner(adapter, results_dir=temp_dir)
-                    run_step(runner, adapter, args.step, loaded_data, args.alpha)
+                    for _ in range(max(1, args.repeat)):
+                        run_step(runner, adapter, args.step, loaded_data, args.alpha)
                 finally:
                     shutil.rmtree(temp_dir, ignore_errors=True)
 
