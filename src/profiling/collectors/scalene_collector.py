@@ -43,14 +43,8 @@ class ScaleneCollector:
         if not python_files:
             return []
 
-        # Scalene принимает подстроки через запятую.
-        # Передаем и относительный путь, и имя файла, чтобы надежнее матчить на разных ОС.
-        filters: List[str] = []
-        for py_file in python_files:
-            rel_path = py_file.as_posix()
-            filters.append(rel_path)
-            filters.append(py_file.name)
-        return filters
+        # Используем полные пути без дубликатов, чтобы избежать лишнего шума в profile_only.
+        return [str(py_file.resolve().as_posix()) for py_file in python_files]
 
     def profile_script(self,
                        script_path: Path,
