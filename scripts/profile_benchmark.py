@@ -80,7 +80,12 @@ def main():
                        type=int,
                        default=None,
                        help='Максимальное количество тестов для запуска')
-    
+
+    parser.add_argument('--scalene',
+                       action='store_true',
+                       default=False,
+                       help='Включить scalene профилирование (если доступно)')
+
     parser.add_argument('--save-raw',
                        action='store_true',
                        default=True,
@@ -116,7 +121,8 @@ def main():
             adapter=adapter,
             results_dir=args.output_dir,
             profiling_level=args.profiling,
-            save_raw_profiles=args.save_raw
+            save_raw_profiles=args.save_raw,
+            enable_scalene=args.scalene
         )
         
         # Запускаем тесты

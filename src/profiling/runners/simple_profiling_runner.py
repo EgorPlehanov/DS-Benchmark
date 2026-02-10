@@ -271,7 +271,7 @@ class SimpleProfilingRunner:
             step_func,
             loaded_data
         )
-        
+
         # Сохраняем метрики
         self.artifact_manager.save_metrics(
             metrics,
