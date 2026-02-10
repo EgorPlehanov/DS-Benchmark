@@ -35,11 +35,11 @@ class ScaleneCollector:
         return shutil.which("scalene") is not None
 
     def _get_profile_only_filters(self) -> List[str]:
-        """Возвращает фильтры для --profile-only из python-файлов указанной папки."""
+        """Возвращает фильтры для --profile-only из python-файлов папки и подпапок."""
         if not self.profile_only_dir.exists():
             return []
 
-        python_files = sorted(self.profile_only_dir.glob("*.py"))
+        python_files = sorted(self.profile_only_dir.rglob("*.py"))
         if not python_files:
             return []
 
