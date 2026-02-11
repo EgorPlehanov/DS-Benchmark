@@ -108,8 +108,6 @@ def main():
     print(f"Библиотека: {args.library}")
     print(f"Профилирование: {args.profiling}")
     print(f"Итераций: {args.iterations}")
-    print("Сырые данные: сохраняются (обязательно)")
-    print("Raw режим: full")
     print(f"Нормализация путей: {'включена' if args.sanitize_paths else 'выключена'}")
     
     try:

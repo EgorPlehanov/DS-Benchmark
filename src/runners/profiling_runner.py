@@ -57,7 +57,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         
         print(f"🔧 ProfilingRunner инициализирован с уровнем: {profiling_level}")
         print(f"📊 Профилировщики: {', '.join(self.profiler.get_enabled_profilers())}")
-        print("🗃️  Режим raw-профилей: full")
         print(f"🛡️  Нормализация путей: {'включена' if self.sanitize_paths else 'выключена'}")
         print(f"📈 Scalene: {self.scalene_collector.get_status()}")
 
