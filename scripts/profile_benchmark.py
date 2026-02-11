@@ -49,6 +49,15 @@ def get_test_dir(tests_arg: str) -> str:
 
 
 def main():
+    def parse_bool(value: str) -> bool:
+        """Парсер булевого значения для CLI-параметров вида True/False."""
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+        raise argparse.ArgumentTypeError("Ожидается булево значение: True/False")
+
     parser = argparse.ArgumentParser(
         description='Запуск бенчмарков с профилированием Демпстера-Шейфера'
     )
@@ -86,15 +95,11 @@ def main():
                        default=False,
                        help='Включить scalene профилирование (если доступно)')
 
-    parser.add_argument('--save-raw',
-                       action='store_true',
+    parser.add_argument('--sanitize-paths',
+                       type=parse_bool,
                        default=True,
-                       help='Сохранять сырые данные профилирования')
-    
-    parser.add_argument('--no-save-raw',
-                       dest='save_raw',
-                       action='store_false',
-                       help='Не сохранять сырые данные профилирования')
+                       help='Нормализовать пути в raw-профилях (по умолчанию: True). '
+                            'Для отключения передайте: --sanitize-paths False')
     
     args = parser.parse_args()
     
@@ -103,7 +108,7 @@ def main():
     print(f"Библиотека: {args.library}")
     print(f"Профилирование: {args.profiling}")
     print(f"Итераций: {args.iterations}")
-    print(f"Сырые данные: {'сохраняются' if args.save_raw else 'не сохраняются'}")
+    print(f"Нормализация путей: {'включена' if args.sanitize_paths else 'выключена'}")
     
     try:
         # Получаем путь к тестам
@@ -121,7 +126,7 @@ def main():
             adapter=adapter,
             results_dir=args.output_dir,
             profiling_level=args.profiling,
-            save_raw_profiles=args.save_raw,
+            sanitize_paths=args.sanitize_paths,
             enable_scalene=args.scalene
         )
         

@@ -5,6 +5,7 @@ ProfilingRunner - расширение UniversalBenchmarkRunner с поддер�
 
 import os
 import json
+import copy
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from pathlib import Path
@@ -27,19 +28,19 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                  adapter,
                  results_dir: str = "results/benchmark",
                  profiling_level: str = "medium",
-                 save_raw_profiles: bool = True,
+                 sanitize_paths: bool = True,
                  enable_scalene: bool = False):
         """
         Args:
             adapter: Адаптер для тестируемой библиотеки
             results_dir: Директория для сохранения результатов
             profiling_level: Уровень профилирования (off, light, medium, full)
-            save_raw_profiles: Сохранять ли сырые данные профилирования
+            sanitize_paths: Нормализовать пути в raw-данных (по умолчанию: True)
         """
         super().__init__(adapter, results_dir)
         
         self.profiling_level = profiling_level
-        self.save_raw_profiles = save_raw_profiles
+        self.sanitize_paths = sanitize_paths
         self.enable_scalene = enable_scalene
         self.profiler = self._setup_profiler()
         
@@ -56,7 +57,59 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         
         print(f"🔧 ProfilingRunner инициализирован с уровнем: {profiling_level}")
         print(f"📊 Профилировщики: {', '.join(self.profiler.get_enabled_profilers())}")
+        print(f"🛡️  Нормализация путей: {'включена' if self.sanitize_paths else 'выключена'}")
         print(f"📈 Scalene: {self.scalene_collector.get_status()}")
+
+    def _make_path_relative(self, value: Any) -> Any:
+        """Преобразует абсолютные пути в относительные к cwd, если возможно."""
+        if not isinstance(value, str):
+            return value
+
+        if not value:
+            return value
+
+        normalized = value.replace("\\", "/")
+
+        if ":/" not in normalized and not normalized.startswith("/"):
+            return value
+
+        try:
+            abs_path = Path(value).resolve()
+            cwd_path = Path.cwd().resolve()
+            relative = abs_path.relative_to(cwd_path)
+            return str(relative).replace("\\", "/")
+        except Exception:
+            # Если путь вне проекта или недоступен, не раскрываем локальные детали.
+            return "<external_path>"
+
+    def _sanitize_paths_in_value(self, value: Any) -> Any:
+        """Рекурсивно нормализует пути во всех строковых значениях структуры данных."""
+        if isinstance(value, dict):
+            sanitized_dict = {}
+            for key, item in value.items():
+                sanitized_key = self._make_path_relative(key) if isinstance(key, str) else key
+                sanitized_dict[sanitized_key] = self._sanitize_paths_in_value(item)
+            return sanitized_dict
+
+        if isinstance(value, list):
+            return [self._sanitize_paths_in_value(item) for item in value]
+
+        if isinstance(value, tuple):
+            return tuple(self._sanitize_paths_in_value(item) for item in value)
+
+        if isinstance(value, str):
+            return self._make_path_relative(value)
+
+        return value
+
+    def _prepare_profiler_payload(self, profiler_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Возвращает полные raw-данные профилировщика с опциональной нормализацией путей."""
+        payload = copy.deepcopy(data)
+
+        if not self.sanitize_paths:
+            return payload
+
+        return self._sanitize_paths_in_value(payload)
     
     def _setup_profiler(self) -> CompositeProfiler:
         """Настраивает композитный профилировщик в зависимости от уровня"""
@@ -200,9 +253,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
     def _save_profiling_data(self, step_name: str, profile_result: CompositeProfileResult, 
                            test_name: str = "", iteration: int = 0) -> None:
         """Сохраняет данные профилирования с привязкой к тесту"""
-        if not self.save_raw_profiles:
-            return
-        
         timestamp = datetime.now().strftime("%H%M%S")
         
         # ✅ СОЗДАЕМ ИМЯ ФАЙЛА С ИНФОРМАЦИЕЙ О ТЕСТЕ
@@ -236,8 +286,12 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 'test_name': test_name,
                 'iteration': iteration,
                 'step': step_name,
-                'data': result.data,
-                'metadata': result.metadata
+                'data': self._prepare_profiler_payload(profiler_name, result.data),
+                'metadata': {
+                    **result.metadata,
+                    'raw_profile_mode': 'full',
+                    'sanitize_paths': self.sanitize_paths
+                }
             }
             
             data_file = os.path.join(
