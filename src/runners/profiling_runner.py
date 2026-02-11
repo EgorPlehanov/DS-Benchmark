@@ -5,6 +5,7 @@ ProfilingRunner - расширение UniversalBenchmarkRunner с поддер�
 
 import os
 import json
+import copy
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from pathlib import Path
@@ -27,27 +28,21 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                  adapter,
                  results_dir: str = "results/benchmark",
                  profiling_level: str = "medium",
-                 raw_profile_mode: str = "compact",
+                 sanitize_paths: bool = True,
                  enable_scalene: bool = False):
         """
         Args:
             adapter: Адаптер для тестируемой библиотеки
             results_dir: Директория для сохранения результатов
             profiling_level: Уровень профилирования (off, light, medium, full)
-            raw_profile_mode: Режим сохранения raw данных (compact|full)
+            sanitize_paths: Нормализовать пути в raw-данных (по умолчанию: True)
         """
         super().__init__(adapter, results_dir)
         
         self.profiling_level = profiling_level
-        self.raw_profile_mode = raw_profile_mode
+        self.sanitize_paths = sanitize_paths
         self.enable_scalene = enable_scalene
         self.profiler = self._setup_profiler()
-
-        if self.raw_profile_mode not in {"compact", "full"}:
-            raise ValueError(
-                f"Неизвестный raw_profile_mode: {self.raw_profile_mode}. "
-                f"Ожидается compact или full"
-            )
         
         # Создаем поддиректории для профилирования
         self.profiling_dir = os.path.join(self.run_dir, "profiling")
@@ -62,7 +57,8 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         
         print(f"🔧 ProfilingRunner инициализирован с уровнем: {profiling_level}")
         print(f"📊 Профилировщики: {', '.join(self.profiler.get_enabled_profilers())}")
-        print(f"🗃️  Режим raw-профилей: {self.raw_profile_mode}")
+        print("🗃️  Режим raw-профилей: full")
+        print(f"🛡️  Нормализация путей: {'включена' if self.sanitize_paths else 'выключена'}")
         print(f"📈 Scalene: {self.scalene_collector.get_status()}")
 
     def _make_path_relative(self, value: Any) -> Any:
@@ -87,68 +83,52 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             # Если путь вне проекта или недоступен, не раскрываем локальные детали.
             return "<external_path>"
 
-    def _build_compact_profiler_payload(self, profiler_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Формирует компактное raw-представление: сохраняем полезные срезы,
-        но не весь объемный/машинно-специфичный дамп.
-        """
-        if self.raw_profile_mode == "full":
-            return data
+    def _prepare_profiler_payload(self, profiler_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Возвращает полные raw-данные профилировщика с опциональной нормализацией путей."""
+        payload = copy.deepcopy(data)
+
+        if not self.sanitize_paths:
+            return payload
 
         if profiler_name == "cpu":
-            top_functions = data.get("top_functions", [])[:15]
-            file_stats = data.get("file_stats", {})
-            compact_files = []
-            for filename, file_data in list(file_stats.items())[:8]:
-                compact_files.append({
-                    "file": self._make_path_relative(filename),
-                    "total_time": file_data.get("total_time", 0.0),
-                    "call_count": file_data.get("call_count", 0),
-                    "functions_count": len(file_data.get("functions", {}))
-                })
+            file_stats = payload.get("file_stats", {})
+            if isinstance(file_stats, dict):
+                normalized_file_stats = {}
+                for filename, file_data in file_stats.items():
+                    normalized_file_stats[self._make_path_relative(filename)] = file_data
+                payload["file_stats"] = normalized_file_stats
 
-            return {
-                "top_functions": top_functions,
-                "total_stats": data.get("total_stats", {}),
-                "top_files": compact_files,
-                "dropped_fields": ["file_stats.functions", "raw_data_path"]
-            }
+            if "raw_data_path" in payload:
+                payload["raw_data_path"] = self._make_path_relative(payload.get("raw_data_path"))
 
         if profiler_name == "memory":
-            memory_stats = data.get("memory_stats", {})
-            top_allocations = memory_stats.get("top_allocations", [])[:10]
-            return {
-                "peak_memory_bytes": data.get("peak_memory_bytes", 0),
-                "current_memory_bytes": data.get("current_memory_bytes", 0),
-                "allocated_blocks": data.get("allocated_blocks", {}),
-                "memory_summary": {
-                    "total_size": memory_stats.get("total_size", 0),
-                    "total_count": memory_stats.get("total_count", 0),
-                    "stats_count": memory_stats.get("stats_count", 0),
-                },
-                "top_allocations": top_allocations,
-                "dropped_fields": ["memory_stats.file_stats"]
-            }
+            memory_stats = payload.get("memory_stats", {})
+            file_stats = memory_stats.get("file_stats", {}) if isinstance(memory_stats, dict) else {}
+            if isinstance(file_stats, dict):
+                normalized_file_stats = {}
+                for filename, file_data in file_stats.items():
+                    normalized_file_stats[self._make_path_relative(filename)] = file_data
+                memory_stats["file_stats"] = normalized_file_stats
+
+            top_allocations = memory_stats.get("top_allocations", []) if isinstance(memory_stats, dict) else []
+            if isinstance(top_allocations, list):
+                for alloc in top_allocations:
+                    if isinstance(alloc, dict) and isinstance(alloc.get("traceback"), str):
+                        alloc["traceback"] = alloc["traceback"].replace("\\", "/")
 
         if profiler_name == "line":
-            top_lines = data.get("top_lines", [])[:25]
-            compact_lines = []
-            for line_data in top_lines:
-                compact_lines.append({
-                    "filename": self._make_path_relative(line_data.get("filename", "")),
-                    "line": line_data.get("line", 0),
-                    "hits": line_data.get("hits", 0),
-                    "total_time": line_data.get("total_time", 0.0),
-                    "avg_time": line_data.get("avg_time", 0.0),
-                    "code": line_data.get("code", "")
-                })
-            return {
-                "top_lines": compact_lines,
-                "top_lines_count": len(top_lines),
-                "dropped_fields": ["file_stats"]
-            }
+            for line_data in payload.get("top_lines", []):
+                if isinstance(line_data, dict):
+                    line_data["filename"] = self._make_path_relative(line_data.get("filename", ""))
 
-        return data
+            file_stats = payload.get("file_stats", {})
+            if isinstance(file_stats, dict):
+                normalized_file_stats = {}
+                for filename, file_data in file_stats.items():
+                    normalized_file_stats[self._make_path_relative(filename)] = file_data
+                payload["file_stats"] = normalized_file_stats
+
+        return payload
     
     def _setup_profiler(self) -> CompositeProfiler:
         """Настраивает композитный профилировщик в зависимости от уровня"""
@@ -325,10 +305,11 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 'test_name': test_name,
                 'iteration': iteration,
                 'step': step_name,
-                'data': self._build_compact_profiler_payload(profiler_name, result.data),
+                'data': self._prepare_profiler_payload(profiler_name, result.data),
                 'metadata': {
                     **result.metadata,
-                    'raw_profile_mode': self.raw_profile_mode
+                    'raw_profile_mode': 'full',
+                    'sanitize_paths': self.sanitize_paths
                 }
             }
             

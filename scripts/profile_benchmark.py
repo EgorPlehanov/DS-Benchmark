@@ -49,6 +49,15 @@ def get_test_dir(tests_arg: str) -> str:
 
 
 def main():
+    def parse_bool(value: str) -> bool:
+        """Парсер булевого значения для CLI-параметров вида True/False."""
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+        raise argparse.ArgumentTypeError("Ожидается булево значение: True/False")
+
     parser = argparse.ArgumentParser(
         description='Запуск бенчмарков с профилированием Демпстера-Шейфера'
     )
@@ -86,10 +95,11 @@ def main():
                        default=False,
                        help='Включить scalene профилирование (если доступно)')
 
-    parser.add_argument('--raw-profile-mode',
-                       default='compact',
-                       choices=['compact', 'full'],
-                       help='Режим сохранения raw-профилей: compact (по умолчанию) или full')
+    parser.add_argument('--sanitize-paths',
+                       type=parse_bool,
+                       default=True,
+                       help='Нормализовать пути в raw-профилях (по умолчанию: True). '
+                            'Для отключения передайте: --sanitize-paths False')
     
     args = parser.parse_args()
     
@@ -99,7 +109,8 @@ def main():
     print(f"Профилирование: {args.profiling}")
     print(f"Итераций: {args.iterations}")
     print("Сырые данные: сохраняются (обязательно)")
-    print(f"Raw режим: {args.raw_profile_mode}")
+    print("Raw режим: full")
+    print(f"Нормализация путей: {'включена' if args.sanitize_paths else 'выключена'}")
     
     try:
         # Получаем путь к тестам
@@ -117,7 +128,7 @@ def main():
             adapter=adapter,
             results_dir=args.output_dir,
             profiling_level=args.profiling,
-            raw_profile_mode=args.raw_profile_mode,
+            sanitize_paths=args.sanitize_paths,
             enable_scalene=args.scalene
         )
         
