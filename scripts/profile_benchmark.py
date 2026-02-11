@@ -86,15 +86,19 @@ def main():
                        default=False,
                        help='Включить scalene профилирование (если доступно)')
 
-    parser.add_argument('--save-raw',
-                       action='store_true',
-                       default=True,
-                       help='Сохранять сырые данные профилирования')
-    
-    parser.add_argument('--no-save-raw',
-                       dest='save_raw',
-                       action='store_false',
-                       help='Не сохранять сырые данные профилирования')
+    raw_group = parser.add_mutually_exclusive_group()
+    raw_group.add_argument('--save-raw',
+                          dest='save_raw',
+                          action='store_true',
+                          help='Явно включить сохранение сырых данных профилирования')
+
+    raw_group.add_argument('--no-save-raw',
+                          dest='save_raw',
+                          action='store_false',
+                          help='Отключить сохранение сырых данных профилирования')
+
+    # По умолчанию сохраняем raw-артефакты.
+    parser.set_defaults(save_raw=True)
 
     parser.add_argument('--raw-profile-mode',
                        default='compact',
