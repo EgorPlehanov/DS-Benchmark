@@ -95,6 +95,11 @@ def main():
                        dest='save_raw',
                        action='store_false',
                        help='Не сохранять сырые данные профилирования')
+
+    parser.add_argument('--raw-profile-mode',
+                       default='compact',
+                       choices=['compact', 'full'],
+                       help='Режим сохранения raw-профилей: compact (по умолчанию) или full')
     
     args = parser.parse_args()
     
@@ -104,6 +109,7 @@ def main():
     print(f"Профилирование: {args.profiling}")
     print(f"Итераций: {args.iterations}")
     print(f"Сырые данные: {'сохраняются' if args.save_raw else 'не сохраняются'}")
+    print(f"Raw режим: {args.raw_profile_mode}")
     
     try:
         # Получаем путь к тестам
@@ -122,6 +128,7 @@ def main():
             results_dir=args.output_dir,
             profiling_level=args.profiling,
             save_raw_profiles=args.save_raw,
+            raw_profile_mode=args.raw_profile_mode,
             enable_scalene=args.scalene
         )
         

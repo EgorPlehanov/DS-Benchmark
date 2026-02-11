@@ -28,6 +28,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                  results_dir: str = "results/benchmark",
                  profiling_level: str = "medium",
                  save_raw_profiles: bool = True,
+                 raw_profile_mode: str = "compact",
                  enable_scalene: bool = False):
         """
         Args:
@@ -35,13 +36,21 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             results_dir: Директория для сохранения результатов
             profiling_level: Уровень профилирования (off, light, medium, full)
             save_raw_profiles: Сохранять ли сырые данные профилирования
+            raw_profile_mode: Режим сохранения raw данных (compact|full)
         """
         super().__init__(adapter, results_dir)
         
         self.profiling_level = profiling_level
         self.save_raw_profiles = save_raw_profiles
+        self.raw_profile_mode = raw_profile_mode
         self.enable_scalene = enable_scalene
         self.profiler = self._setup_profiler()
+
+        if self.raw_profile_mode not in {"compact", "full"}:
+            raise ValueError(
+                f"Неизвестный raw_profile_mode: {self.raw_profile_mode}. "
+                f"Ожидается compact или full"
+            )
         
         # Создаем поддиректории для профилирования
         self.profiling_dir = os.path.join(self.run_dir, "profiling")
@@ -56,7 +65,93 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         
         print(f"🔧 ProfilingRunner инициализирован с уровнем: {profiling_level}")
         print(f"📊 Профилировщики: {', '.join(self.profiler.get_enabled_profilers())}")
+        print(f"🗃️  Режим raw-профилей: {self.raw_profile_mode}")
         print(f"📈 Scalene: {self.scalene_collector.get_status()}")
+
+    def _make_path_relative(self, value: Any) -> Any:
+        """Преобразует абсолютные пути в относительные к cwd, если возможно."""
+        if not isinstance(value, str):
+            return value
+
+        if not value:
+            return value
+
+        normalized = value.replace("\\", "/")
+
+        if ":/" not in normalized and not normalized.startswith("/"):
+            return value
+
+        try:
+            abs_path = Path(value).resolve()
+            cwd_path = Path.cwd().resolve()
+            relative = abs_path.relative_to(cwd_path)
+            return str(relative).replace("\\", "/")
+        except Exception:
+            # Если путь вне проекта или недоступен, не раскрываем локальные детали.
+            return "<external_path>"
+
+    def _build_compact_profiler_payload(self, profiler_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Формирует компактное raw-представление: сохраняем полезные срезы,
+        но не весь объемный/машинно-специфичный дамп.
+        """
+        if self.raw_profile_mode == "full":
+            return data
+
+        if profiler_name == "cpu":
+            top_functions = data.get("top_functions", [])[:15]
+            file_stats = data.get("file_stats", {})
+            compact_files = []
+            for filename, file_data in list(file_stats.items())[:8]:
+                compact_files.append({
+                    "file": self._make_path_relative(filename),
+                    "total_time": file_data.get("total_time", 0.0),
+                    "call_count": file_data.get("call_count", 0),
+                    "functions_count": len(file_data.get("functions", {}))
+                })
+
+            return {
+                "top_functions": top_functions,
+                "total_stats": data.get("total_stats", {}),
+                "top_files": compact_files,
+                "dropped_fields": ["file_stats.functions", "raw_data_path"]
+            }
+
+        if profiler_name == "memory":
+            memory_stats = data.get("memory_stats", {})
+            top_allocations = memory_stats.get("top_allocations", [])[:10]
+            return {
+                "peak_memory_bytes": data.get("peak_memory_bytes", 0),
+                "current_memory_bytes": data.get("current_memory_bytes", 0),
+                "allocated_blocks": data.get("allocated_blocks", {}),
+                "memory_summary": {
+                    "total_size": memory_stats.get("total_size", 0),
+                    "total_count": memory_stats.get("total_count", 0),
+                    "stats_count": memory_stats.get("stats_count", 0),
+                },
+                "top_allocations": top_allocations,
+                "dropped_fields": ["memory_stats.file_stats"]
+            }
+
+        if profiler_name == "line":
+            top_lines = data.get("top_lines", [])[:25]
+            compact_lines = []
+            for line_data in top_lines:
+                compact_lines.append({
+                    "filename": self._make_path_relative(line_data.get("filename", "")),
+                    "line": line_data.get("line", 0),
+                    "hits": line_data.get("hits", 0),
+                    "total_time": line_data.get("total_time", 0.0),
+                    "avg_time": line_data.get("avg_time", 0.0),
+                    "code": line_data.get("code", "")
+                })
+            return {
+                "top_lines": compact_lines,
+                "top_lines_count": len(top_lines),
+                "dropped_fields": ["file_stats"]
+            }
+
+        return data
     
     def _setup_profiler(self) -> CompositeProfiler:
         """Настраивает композитный профилировщик в зависимости от уровня"""
@@ -236,8 +331,11 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 'test_name': test_name,
                 'iteration': iteration,
                 'step': step_name,
-                'data': result.data,
-                'metadata': result.metadata
+                'data': self._build_compact_profiler_payload(profiler_name, result.data),
+                'metadata': {
+                    **result.metadata,
+                    'raw_profile_mode': self.raw_profile_mode
+                }
             }
             
             data_file = os.path.join(
