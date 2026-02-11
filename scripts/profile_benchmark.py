@@ -86,20 +86,6 @@ def main():
                        default=False,
                        help='Включить scalene профилирование (если доступно)')
 
-    raw_group = parser.add_mutually_exclusive_group()
-    raw_group.add_argument('--save-raw',
-                          dest='save_raw',
-                          action='store_true',
-                          help='Явно включить сохранение сырых данных профилирования')
-
-    raw_group.add_argument('--no-save-raw',
-                          dest='save_raw',
-                          action='store_false',
-                          help='Отключить сохранение сырых данных профилирования')
-
-    # По умолчанию сохраняем raw-артефакты.
-    parser.set_defaults(save_raw=True)
-
     parser.add_argument('--raw-profile-mode',
                        default='compact',
                        choices=['compact', 'full'],
@@ -112,7 +98,7 @@ def main():
     print(f"Библиотека: {args.library}")
     print(f"Профилирование: {args.profiling}")
     print(f"Итераций: {args.iterations}")
-    print(f"Сырые данные: {'сохраняются' if args.save_raw else 'не сохраняются'}")
+    print("Сырые данные: сохраняются (обязательно)")
     print(f"Raw режим: {args.raw_profile_mode}")
     
     try:
@@ -131,7 +117,6 @@ def main():
             adapter=adapter,
             results_dir=args.output_dir,
             profiling_level=args.profiling,
-            save_raw_profiles=args.save_raw,
             raw_profile_mode=args.raw_profile_mode,
             enable_scalene=args.scalene
         )

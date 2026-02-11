@@ -27,7 +27,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                  adapter,
                  results_dir: str = "results/benchmark",
                  profiling_level: str = "medium",
-                 save_raw_profiles: bool = True,
                  raw_profile_mode: str = "compact",
                  enable_scalene: bool = False):
         """
@@ -35,13 +34,11 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             adapter: Адаптер для тестируемой библиотеки
             results_dir: Директория для сохранения результатов
             profiling_level: Уровень профилирования (off, light, medium, full)
-            save_raw_profiles: Сохранять ли сырые данные профилирования
             raw_profile_mode: Режим сохранения raw данных (compact|full)
         """
         super().__init__(adapter, results_dir)
         
         self.profiling_level = profiling_level
-        self.save_raw_profiles = save_raw_profiles
         self.raw_profile_mode = raw_profile_mode
         self.enable_scalene = enable_scalene
         self.profiler = self._setup_profiler()
@@ -295,9 +292,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
     def _save_profiling_data(self, step_name: str, profile_result: CompositeProfileResult, 
                            test_name: str = "", iteration: int = 0) -> None:
         """Сохраняет данные профилирования с привязкой к тесту"""
-        if not self.save_raw_profiles:
-            return
-        
         timestamp = datetime.now().strftime("%H%M%S")
         
         # ✅ СОЗДАЕМ ИМЯ ФАЙЛА С ИНФОРМАЦИЕЙ О ТЕСТЕ
