@@ -557,8 +557,8 @@ def main():
     last_gen = get_last_generation_path()
     if last_gen:
         print(f"\n📁 Для запуска тестов используйте:")
-        print(f"  python scripts/run_benchmark.py --library our --tests last")
-        print(f"  python scripts/run_benchmark.py --library our --tests {last_gen}")
+        print(f"  python scripts/profile_benchmark.py --library our --tests last --profiling off")
+        print(f"  python scripts/profile_benchmark.py --library our --tests {last_gen} --profiling off")
 
 
 if __name__ == "__main__":
