@@ -83,6 +83,26 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             # Если путь вне проекта или недоступен, не раскрываем локальные детали.
             return "<external_path>"
 
+    def _sanitize_paths_in_value(self, value: Any) -> Any:
+        """Рекурсивно нормализует пути во всех строковых значениях структуры данных."""
+        if isinstance(value, dict):
+            sanitized_dict = {}
+            for key, item in value.items():
+                sanitized_key = self._make_path_relative(key) if isinstance(key, str) else key
+                sanitized_dict[sanitized_key] = self._sanitize_paths_in_value(item)
+            return sanitized_dict
+
+        if isinstance(value, list):
+            return [self._sanitize_paths_in_value(item) for item in value]
+
+        if isinstance(value, tuple):
+            return tuple(self._sanitize_paths_in_value(item) for item in value)
+
+        if isinstance(value, str):
+            return self._make_path_relative(value)
+
+        return value
+
     def _prepare_profiler_payload(self, profiler_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Возвращает полные raw-данные профилировщика с опциональной нормализацией путей."""
         payload = copy.deepcopy(data)
@@ -90,45 +110,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         if not self.sanitize_paths:
             return payload
 
-        if profiler_name == "cpu":
-            file_stats = payload.get("file_stats", {})
-            if isinstance(file_stats, dict):
-                normalized_file_stats = {}
-                for filename, file_data in file_stats.items():
-                    normalized_file_stats[self._make_path_relative(filename)] = file_data
-                payload["file_stats"] = normalized_file_stats
-
-            if "raw_data_path" in payload:
-                payload["raw_data_path"] = self._make_path_relative(payload.get("raw_data_path"))
-
-        if profiler_name == "memory":
-            memory_stats = payload.get("memory_stats", {})
-            file_stats = memory_stats.get("file_stats", {}) if isinstance(memory_stats, dict) else {}
-            if isinstance(file_stats, dict):
-                normalized_file_stats = {}
-                for filename, file_data in file_stats.items():
-                    normalized_file_stats[self._make_path_relative(filename)] = file_data
-                memory_stats["file_stats"] = normalized_file_stats
-
-            top_allocations = memory_stats.get("top_allocations", []) if isinstance(memory_stats, dict) else []
-            if isinstance(top_allocations, list):
-                for alloc in top_allocations:
-                    if isinstance(alloc, dict) and isinstance(alloc.get("traceback"), str):
-                        alloc["traceback"] = alloc["traceback"].replace("\\", "/")
-
-        if profiler_name == "line":
-            for line_data in payload.get("top_lines", []):
-                if isinstance(line_data, dict):
-                    line_data["filename"] = self._make_path_relative(line_data.get("filename", ""))
-
-            file_stats = payload.get("file_stats", {})
-            if isinstance(file_stats, dict):
-                normalized_file_stats = {}
-                for filename, file_data in file_stats.items():
-                    normalized_file_stats[self._make_path_relative(filename)] = file_data
-                payload["file_stats"] = normalized_file_stats
-
-        return payload
+        return self._sanitize_paths_in_value(payload)
     
     def _setup_profiler(self) -> CompositeProfiler:
         """Настраивает композитный профилировщик в зависимости от уровня"""
