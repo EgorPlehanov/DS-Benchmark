@@ -9,6 +9,23 @@ from typing import Any
 
 
 _ABS_PATH_PATTERN = re.compile(r"[A-Za-z]:[\\/][^\s\"'<>|]+|/(?:[^\s\"'<>|]+)")
+_LIKELY_UNIX_ABS_PREFIXES = (
+    "/workspace/",
+    "/home/",
+    "/users/",
+    "/root/",
+    "/tmp/",
+    "/var/",
+    "/etc/",
+    "/opt/",
+    "/mnt/",
+    "/media/",
+    "/private/",
+    "/usr/",
+    "/proc/",
+    "/sys/",
+    "/dev/",
+)
 
 
 def sanitize_path_string(value: str) -> str:
@@ -18,6 +35,12 @@ def sanitize_path_string(value: str) -> str:
 
     normalized = value.replace("\\", "/")
     if ":/" not in normalized and not normalized.startswith("/"):
+        return value
+
+    # Для Unix-путей избегаем ложных срабатываний на JS/CSS regex-литералы (/g, /\s/, /.../i).
+    # Санитизируем только то, что похоже на реальный абсолютный путь ФС.
+    normalized_lower = normalized.lower()
+    if normalized.startswith("/") and not normalized_lower.startswith(_LIKELY_UNIX_ABS_PREFIXES):
         return value
 
     cwd_path = Path.cwd().resolve()
