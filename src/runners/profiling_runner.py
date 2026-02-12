@@ -448,7 +448,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
 
         # Сохраняем входные данные теста
         self.artifact_manager.save_test_input(test_data, test_name)
-        self._save_scalene_input(test_name, test_data)
         
         if alphas is None:
             sources_count = self.adapter.get_sources_count(loaded_data)
@@ -492,20 +491,13 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         self.artifact_manager.save_test_results(persisted_results, test_name)
         self._create_short_report(test_results, test_name)
 
-    def _save_scalene_input(self, test_name: str, test_data: Dict[str, Any]) -> None:
-        """Сохраняет входные данные теста для scalene."""
-        if not self.enable_scalene:
-            return
-        self.artifact_manager.save_json(
-            f"{test_name}.json",
-            test_data,
-            subdir="profilers/scalene/inputs"
-        )
-
     def _get_scalene_input_path(self, test_name: str) -> Optional[str]:
         if not self.enable_scalene:
             return None
-        input_path = self.artifact_manager.run_dir / "profilers" / "scalene" / "inputs" / f"{test_name}.json"
+        input_path = self.artifact_manager.get_path(
+            f"{test_name}_input.json",
+            subdir="input"
+        )
         return str(input_path) if input_path.exists() else None
     
     def cleanup(self):
