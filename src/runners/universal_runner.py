@@ -60,8 +60,7 @@ class UniversalBenchmarkRunner:
         print(f"📁 Результаты будут сохранены в: {self.run_dir}")
 
     def set_run_parameters(self, **parameters: Any) -> None:
-        """Сохраняет параметры запуска в session_info и отдельный файл run_parameters.json."""
-        self.artifact_manager.update_metadata({"run_parameters": parameters})
+        """Сохраняет параметры запуска только в отдельный файл run_parameters.json."""
         self.artifact_manager.save_run_parameters(parameters)
     
     def run_test(self, test_data: Dict[str, Any], 
