@@ -6,6 +6,7 @@ ProfilingRunner - расширение UniversalBenchmarkRunner с поддер�
 import os
 import json
 import copy
+import shutil
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from pathlib import Path
@@ -27,33 +28,48 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
     def __init__(self, 
                  adapter,
                  results_dir: str = "results/profiling",
-                 profiling_level: str = "medium",
+                 profiling_mode: str = "full",
+                 selected_profilers: Optional[List[str]] = None,
                  sanitize_paths: bool = True,
-                 enable_scalene: bool = False):
+                 enable_scalene: Optional[bool] = None):
         """
         Args:
             adapter: Адаптер для тестируемой библиотеки
             results_dir: Директория для сохранения результатов
-            profiling_level: Уровень профилирования (off, light, medium, full)
+            profiling_mode: Режим профилирования (off, custom, full)
+            selected_profilers: Список активных профилировщиков (cpu, memory, line, scalene)
             sanitize_paths: Нормализовать пути в raw-данных (по умолчанию: True)
         """
+        if selected_profilers is None:
+            resolved_selected_profilers = ["cpu", "memory", "line", "scalene"]
+        else:
+            resolved_selected_profilers = list(dict.fromkeys(selected_profilers))
+
         super().__init__(adapter, results_dir)
-        
-        self.profiling_level = profiling_level
+
+        self.profiling_mode = profiling_mode
+        self.selected_profilers = resolved_selected_profilers
+        self.core_profilers = [name for name in self.selected_profilers if name != "scalene"]
+        self.profiling_level = "off" if not self.selected_profilers else profiling_mode
         self.sanitize_paths = sanitize_paths
-        self.enable_scalene = enable_scalene
+        self.enable_scalene = ("scalene" in self.selected_profilers) if enable_scalene is None else enable_scalene
         self.profiler = self._setup_profiler()
         
         # Базовый путь профилирования в структуре артефактов
         self.profiling_dir = str(self.artifact_manager.run_dir / "profilers")
 
+        if not self.selected_profilers:
+            profilers_dir = Path(self.profiling_dir)
+            if profilers_dir.exists():
+                shutil.rmtree(profilers_dir, ignore_errors=True)
+
         self.scalene_collector = ScaleneCollector(
             output_dir=str(self.artifact_manager.run_dir / "profilers" / "scalene"),
-            enabled=enable_scalene
+            enabled=self.enable_scalene
         )
         
-        print(f"🔧 ProfilingRunner инициализирован с уровнем: {profiling_level}")
-        print(f"📊 Профилировщики: {', '.join(self.profiler.get_enabled_profilers())}")
+        print(f"🔧 ProfilingRunner инициализирован с режимом: {self.profiling_mode}")
+        print(f"📊 Профилировщики: {', '.join(self.selected_profilers) if self.selected_profilers else 'отключены'}")
         print(f"🛡️  Нормализация путей: {'включена' if self.sanitize_paths else 'выключена'}")
         print(f"📈 Scalene: {self.scalene_collector.get_status()}")
 
@@ -111,47 +127,29 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
     def _setup_profiler(self) -> CompositeProfiler:
         """Настраивает композитный профилировщик в зависимости от уровня"""
         profilers = []
-        
-        if self.profiling_level == "off":
+
+        if not self.core_profilers:
             return CompositeProfiler(profilers=[], auto_setup=False)
-        
-        elif self.profiling_level == "light":
-            cpu_profiler = CPUProfiler(
-                name="cpu",
-                enabled=True,
-                sort_by='cumulative',
-                limit=15
-            )
-            profilers.append(cpu_profiler)
-        
-        elif self.profiling_level == "medium":
-            cpu_profiler = CPUProfiler(
-                name="cpu",
-                enabled=True,
-                sort_by='cumulative',
-                limit=25
-            )
-            memory_profiler = MemoryProfiler(
-                name="memory",
-                enabled=True,
-                trace_frames=15,
-                limit=10
-            )
-            profilers.extend([cpu_profiler, memory_profiler])
-        
-        elif self.profiling_level == "full":
+
+        if "cpu" in self.core_profilers:
             cpu_profiler = CPUProfiler(
                 name="cpu",
                 enabled=True,
                 sort_by='cumulative',
                 limit=40
             )
+            profilers.append(cpu_profiler)
+
+        if "memory" in self.core_profilers:
             memory_profiler = MemoryProfiler(
                 name="memory",
                 enabled=True,
                 trace_frames=25,
                 limit=20
             )
+            profilers.append(memory_profiler)
+
+        if "line" in self.core_profilers:
             line_profiler = LineProfiler(
                 name="line",
                 enabled=True,
@@ -159,10 +157,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 limit=50,
                 line_limit_per_file=30
             )
-            profilers.extend([cpu_profiler, memory_profiler, line_profiler])
-        
-        else:
-            raise ValueError(f"Неизвестный уровень профилирования: {self.profiling_level}")
+            profilers.append(line_profiler)
         
         return CompositeProfiler(profilers=profilers, auto_setup=False)
     
@@ -171,8 +166,24 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         """
         Расширенное измерение производительности с профилированием.
         """
-        if self.profiling_level == "off":
+        if not self.selected_profilers:
             return super()._measure_performance(func, *args, step_name=step_name, **kwargs)
+
+        if not self.core_profilers:
+            result, base_metrics = super()._measure_performance(func, *args, step_name=step_name, **kwargs)
+            if self.enable_scalene and test_name:
+                input_path = self._get_scalene_input_path(test_name)
+                if input_path:
+                    scalene_info = self.scalene_collector.profile_step(
+                        input_path=input_path,
+                        adapter_name=self.adapter_name,
+                        step_name=step_name,
+                        iteration=1,
+                        test_name=test_name,
+                        repeat=repeat_count
+                    )
+                    base_metrics["scalene"] = scalene_info
+            return result, base_metrics
         
         print(f"   📊 Профилирование {step_name}...", end="", flush=True)
         
@@ -437,7 +448,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
 
         # Сохраняем входные данные теста
         self.artifact_manager.save_test_input(test_data, test_name)
-        self._save_scalene_input(test_name, test_data)
         
         if alphas is None:
             sources_count = self.adapter.get_sources_count(loaded_data)
@@ -481,20 +491,13 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         self.artifact_manager.save_test_results(persisted_results, test_name)
         self._create_short_report(test_results, test_name)
 
-    def _save_scalene_input(self, test_name: str, test_data: Dict[str, Any]) -> None:
-        """Сохраняет входные данные теста для scalene."""
-        if not self.enable_scalene:
-            return
-        self.artifact_manager.save_json(
-            f"{test_name}.json",
-            test_data,
-            subdir="profilers/scalene/inputs"
-        )
-
     def _get_scalene_input_path(self, test_name: str) -> Optional[str]:
         if not self.enable_scalene:
             return None
-        input_path = self.artifact_manager.run_dir / "profilers" / "scalene" / "inputs" / f"{test_name}.json"
+        input_path = self.artifact_manager.get_path(
+            f"{test_name}_input.json",
+            subdir="input"
+        )
         return str(input_path) if input_path.exists() else None
     
     def cleanup(self):
