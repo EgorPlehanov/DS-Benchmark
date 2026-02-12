@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..adapters.base_adapter import BaseDempsterShaferAdapter
+from ..profiling.artifacts import ArtifactManager, collect_basic_metadata
 
 
 class UniversalBenchmarkRunner:
@@ -28,7 +29,7 @@ class UniversalBenchmarkRunner:
     """
     
     def __init__(self, adapter: BaseDempsterShaferAdapter, 
-                 results_dir: str = "results/benchmark"):
+                 results_dir: str = "results/profiling"):
         """
         Инициализация раннера.
         
@@ -41,18 +42,27 @@ class UniversalBenchmarkRunner:
         self.results_dir = results_dir
         self.results = []
         
-        # Создаем директории для результатов
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.run_id = f"{self.adapter_name}_{timestamp}"
-        self.run_dir = os.path.join(results_dir, self.run_id)
-        
-        os.makedirs(self.run_dir, exist_ok=True)
-        os.makedirs(os.path.join(self.run_dir, "raw"), exist_ok=True)
-        os.makedirs(os.path.join(self.run_dir, "profiles"), exist_ok=True)
-        os.makedirs(os.path.join(self.run_dir, "aggregated"), exist_ok=True)
-        
+        # Создаем структуру артефактов: results/profiling/<library>/<timestamp>/
+        self.run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.artifact_manager = ArtifactManager(
+            base_dir=results_dir,
+            adapter_name=self.adapter_name,
+            run_id=self.run_id,
+        )
+        self.run_dir = str(self.artifact_manager.run_dir)
+
+        # Сохраняем базовые метаданные запуска
+        self.artifact_manager.update_metadata({
+            "environment": collect_basic_metadata(),
+        })
+
         print(f"🚀 Инициализирован раннер для {self.adapter_name}")
         print(f"📁 Результаты будут сохранены в: {self.run_dir}")
+
+    def set_run_parameters(self, **parameters: Any) -> None:
+        """Сохраняет параметры запуска в session_info и отдельный файл run_parameters.json."""
+        self.artifact_manager.update_metadata({"run_parameters": parameters})
+        self.artifact_manager.save_run_parameters(parameters)
     
     def run_test(self, test_data: Dict[str, Any], 
              test_name: str,
@@ -80,6 +90,9 @@ class UniversalBenchmarkRunner:
         
         # Загружаем данные через адаптер
         loaded_data = self.adapter.load_from_dass(test_data)
+
+        # Сохраняем вход теста как артефакт
+        self.artifact_manager.save_test_input(test_data, test_name)
         
         # Определяем коэффициенты дисконтирования
         if alphas is None:
@@ -561,13 +574,8 @@ class UniversalBenchmarkRunner:
     
     def _save_test_results(self, test_results: Dict[str, Any], test_name: str):
         """Сохраняет результаты теста в файлы."""
-        # Сохраняем полные результаты
-        filename = f"{test_name}_{self.run_id}.json"
-        filepath = os.path.join(self.run_dir, "raw", filename)
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(test_results, f, indent=2, ensure_ascii=False)
-        
+        self.artifact_manager.save_test_results(test_results, test_name)
+
         # Сохраняем краткий отчет
         self._create_short_report(test_results, test_name)
     
@@ -636,10 +644,7 @@ class UniversalBenchmarkRunner:
         
         # Сохраняем отчет
         report_filename = f"{test_name}_{self.run_id}_report.txt"
-        report_path = os.path.join(self.run_dir, "raw", report_filename)
-        
-        with open(report_path, 'w', encoding='utf-8') as f:
-            f.write("\n".join(report_lines))
+        self.artifact_manager.save_text(report_filename, "\n".join(report_lines), subdir="logs")
     
     def run_test_suite(self, test_dir: str, 
                   iterations: int = 3,
@@ -815,7 +820,7 @@ class UniversalBenchmarkRunner:
             print(f"🔴 Не запустились: {failed_tests}")
         
         print(f"\n✅ ВЫПОЛНЕНИЕ ЗАВЕРШЕНО")
-        print(f"📊 Детальный отчет сохранен в: {self.run_dir}/aggregated/final_report.txt")
+        print(f"📊 Детальный отчет сохранен в: {self.run_dir}/logs/final_report.txt")
         
         return summary
     
@@ -1046,9 +1051,7 @@ class UniversalBenchmarkRunner:
                 }
         
         # Сохраняем итоговый отчет
-        summary_file = os.path.join(self.run_dir, "aggregated", "summary.json")
-        with open(summary_file, 'w', encoding='utf-8') as f:
-            json.dump(summary, f, indent=2, ensure_ascii=False)
+        self.artifact_manager.save_json("summary.json", summary, subdir="metrics")
         
         # Создаем текстовый отчет
         self._create_final_text_report(summary)
@@ -1243,9 +1246,7 @@ class UniversalBenchmarkRunner:
         report_lines.append(f"\n📊 Результаты сохранены в: {self.run_dir}")
         
         # Сохраняем отчет
-        report_path = os.path.join(self.run_dir, "aggregated", "final_report.txt")
-        with open(report_path, 'w', encoding='utf-8') as f:
-            f.write("\n".join(report_lines))
+        self.artifact_manager.save_text("final_report.txt", "\n".join(report_lines), subdir="logs")
         
         # Также выводим краткую версию в консоль
         console_lines = [

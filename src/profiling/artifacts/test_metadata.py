@@ -59,7 +59,7 @@ class TestMetadata:
         try:
             import getpass
             return getpass.getuser()
-        except:
+        except (ImportError, OSError):
             return "unknown"
     
     def _collect_system_info(self) -> Dict[str, Any]:
@@ -74,7 +74,7 @@ class TestMetadata:
                     cpu_info["current"] = cpu_freq.current
                 if hasattr(cpu_freq, 'max'):
                     cpu_info["max"] = cpu_freq.max
-            except:
+            except (AttributeError, TypeError):
                 cpu_info["current"] = None
                 cpu_info["max"] = None
             

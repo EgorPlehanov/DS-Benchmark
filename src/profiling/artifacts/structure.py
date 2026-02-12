@@ -56,7 +56,9 @@ def validate_artifact_structure(base_path: Path) -> List[str]:
         "profilers",
         "test_results",
         "metrics",
-        "logs"
+        "visualizations",
+        "logs",
+        "tmp"
     ]
     
     for dir_name in required_dirs:
@@ -72,10 +74,12 @@ def validate_artifact_structure(base_path: Path) -> List[str]:
         problems.append(f"Отсутствует session_info.json")
     else:
         try:
-            with open(session_file, 'r') as f:
+            with open(session_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            if "session_id" not in data:
-                problems.append("session_info.json не содержит session_id")
+            required_session_keys = ["session_id", "created_at", "adapter", "run_dir"]
+            for key in required_session_keys:
+                if key not in data:
+                    problems.append(f"session_info.json не содержит {key}")
         except json.JSONDecodeError:
             problems.append("session_info.json содержит некорректный JSON")
     

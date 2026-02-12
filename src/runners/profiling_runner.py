@@ -26,7 +26,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
     
     def __init__(self, 
                  adapter,
-                 results_dir: str = "results/benchmark",
+                 results_dir: str = "results/profiling",
                  profiling_level: str = "medium",
                  sanitize_paths: bool = True,
                  enable_scalene: bool = False):
@@ -44,14 +44,11 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         self.enable_scalene = enable_scalene
         self.profiler = self._setup_profiler()
         
-        # Создаем поддиректории для профилирования
-        self.profiling_dir = os.path.join(self.run_dir, "profiling")
-        os.makedirs(self.profiling_dir, exist_ok=True)
-        os.makedirs(os.path.join(self.profiling_dir, "raw"), exist_ok=True)
-        os.makedirs(os.path.join(self.profiling_dir, "reports"), exist_ok=True)
+        # Базовый путь профилирования в структуре артефактов
+        self.profiling_dir = str(self.artifact_manager.run_dir / "profilers")
 
         self.scalene_collector = ScaleneCollector(
-            output_dir=os.path.join(self.profiling_dir, "scalene"),
+            output_dir=str(self.artifact_manager.run_dir / "profilers" / "scalene"),
             enabled=enable_scalene
         )
         
@@ -275,9 +272,11 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             'metadata': profile_result.metadata
         }
         
-        report_file = os.path.join(self.profiling_dir, "reports", f"{filename}_report.json")
-        with open(report_file, 'w', encoding='utf-8') as f:
-            json.dump(report_data, f, indent=2, ensure_ascii=False)
+        self.artifact_manager.save_json(
+            f"{filename}_report.json",
+            report_data,
+            subdir=f"profilers/reports/{test_name or 'unknown'}"
+        )
         
         # 2. Детальные данные профилировщиков
         for profiler_name, result in profile_result.results.items():
@@ -294,24 +293,29 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 }
             }
             
-            data_file = os.path.join(
-                self.profiling_dir, 
-                "raw", 
-                f"{filename}_{profiler_name}.json"
+            self.artifact_manager.save_profiler_data(
+                profiler_name=profiler_name,
+                data=profiler_data,
+                test_name=test_name or "unknown",
+                step_name=step_name,
+                iteration=iteration if iteration > 0 else 1,
             )
-            
-            with open(data_file, 'w', encoding='utf-8') as f:
-                json.dump(profiler_data, f, indent=2, ensure_ascii=False)
+
         
         # 3. Краткая информация для быстрого поиска
-        info_file = os.path.join(self.profiling_dir, "raw", f"{filename}_info.txt")
-        with open(info_file, 'w', encoding='utf-8') as f:
-            f.write(f"Test: {test_name}\n")
-            f.write(f"Step: {step_name}\n")
-            f.write(f"Iteration: {iteration}\n")
-            f.write(f"Timestamp: {datetime.now().isoformat()}\n")
-            f.write(f"Profiles: {', '.join(profile_result.results.keys())}\n")
-    
+        info_content = (
+            f"Test: {test_name}\n"
+            f"Step: {step_name}\n"
+            f"Iteration: {iteration}\n"
+            f"Timestamp: {datetime.now().isoformat()}\n"
+            f"Profiles: {', '.join(profile_result.results.keys())}\n"
+        )
+        self.artifact_manager.save_text(
+            f"{filename}_info.txt",
+            info_content,
+            subdir=f"profilers/info/{test_name or 'unknown'}"
+        )
+
     def _run_single_iteration(self, loaded_data: Any, test_data: Dict[str, Any],
                             iteration_num: int, alphas: List[float], 
                             test_name: str = "") -> Dict[str, Any]:
@@ -331,6 +335,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         )
         iteration_results["step1"] = step1_results
         iteration_results["performance"]["step1"] = step1_metrics
+        self.artifact_manager.save_metrics(step1_metrics, test_name or "unknown", "step1_original", iteration_num)
         
         # Шаг 2
         step2_results, step2_metrics = self._measure_performance(
@@ -342,6 +347,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         )
         iteration_results["step2"] = step2_results
         iteration_results["performance"]["step2"] = step2_metrics
+        self.artifact_manager.save_metrics(step2_metrics, test_name or "unknown", "step2_dempster", iteration_num)
         
         # Шаг 3
         step3_results, step3_metrics = self._measure_performance(
@@ -354,6 +360,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         )
         iteration_results["step3"] = step3_results
         iteration_results["performance"]["step3"] = step3_metrics
+        self.artifact_manager.save_metrics(step3_metrics, test_name or "unknown", "step3_discount_dempster", iteration_num)
         
         # Шаг 4
         step4_results, step4_metrics = self._measure_performance(
@@ -365,6 +372,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         )
         iteration_results["step4"] = step4_results
         iteration_results["performance"]["step4"] = step4_metrics
+        self.artifact_manager.save_metrics(step4_metrics, test_name or "unknown", "step4_yager", iteration_num)
         
         # Общая статистика
         iteration_results["performance"]["total"] = {
@@ -401,6 +409,8 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         
         loaded_data = self.adapter.load_from_dass(test_data)
 
+        # Сохраняем входные данные теста
+        self.artifact_manager.save_test_input(test_data, test_name)
         self._save_scalene_input(test_name, test_data)
         
         if alphas is None:
@@ -434,17 +444,17 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         """Сохраняет входные данные теста для scalene."""
         if not self.enable_scalene:
             return
-        input_dir = os.path.join(self.profiling_dir, "scalene", "inputs")
-        os.makedirs(input_dir, exist_ok=True)
-        input_path = os.path.join(input_dir, f"{test_name}.json")
-        with open(input_path, "w", encoding="utf-8") as f:
-            json.dump(test_data, f, indent=2, ensure_ascii=False)
+        self.artifact_manager.save_json(
+            f"{test_name}.json",
+            test_data,
+            subdir="profilers/scalene/inputs"
+        )
 
     def _get_scalene_input_path(self, test_name: str) -> Optional[str]:
         if not self.enable_scalene:
             return None
-        input_path = os.path.join(self.profiling_dir, "scalene", "inputs", f"{test_name}.json")
-        return input_path if os.path.exists(input_path) else None
+        input_path = self.artifact_manager.run_dir / "profilers" / "scalene" / "inputs" / f"{test_name}.json"
+        return str(input_path) if input_path.exists() else None
     
     def cleanup(self):
         """Очистка ресурсов"""
