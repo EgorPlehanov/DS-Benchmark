@@ -49,6 +49,8 @@ def get_test_dir(tests_arg: str) -> str:
 
 
 def main():
+    available_profilers = {"cpu", "memory", "line", "scalene"}
+
     def parse_bool(value: str) -> bool:
         """Парсер булевого значения для CLI-параметров вида True/False."""
         normalized = value.strip().lower()
@@ -57,6 +59,31 @@ def main():
         if normalized in {"false", "0", "no", "n", "off"}:
             return False
         raise argparse.ArgumentTypeError("Ожидается булево значение: True/False")
+
+    def parse_profiling(value: str):
+        """Парсер режима профилирования: full | off | list(cpu,memory,...)"""
+        normalized = value.strip().lower()
+
+        if normalized == "full":
+            return ["cpu", "memory", "line", "scalene"]
+
+        if normalized == "off":
+            return []
+
+        tokens = [token.strip().lower() for token in value.replace(";", ",").split(",") if token.strip()]
+        invalid = sorted(set(tokens) - available_profilers)
+
+        if not tokens:
+            raise argparse.ArgumentTypeError(
+                "--profiling должен быть 'full', 'off' или списком профайлеров: cpu,memory,line,scalene"
+            )
+
+        if invalid:
+            raise argparse.ArgumentTypeError(
+                f"Неизвестные профайлеры: {', '.join(invalid)}. Доступно: {', '.join(sorted(available_profilers))}"
+            )
+
+        return list(dict.fromkeys(tokens))
 
     parser = argparse.ArgumentParser(
         description='Запуск бенчмарков с профилированием Демпстера-Шейфера'
@@ -72,9 +99,9 @@ def main():
                        help='Путь к тестам или "last" для последней генерации')
     
     parser.add_argument('--profiling',
-                       default='medium',
-                       choices=['off', 'light', 'medium', 'full'],
-                       help='Уровень профилирования')
+                       default='full',
+                       type=parse_profiling,
+                       help='Режим профилирования: full | off | список (cpu,memory,line,scalene)')
     
     parser.add_argument('--iterations',
                        type=int,
@@ -90,11 +117,6 @@ def main():
                        default=None,
                        help='Максимальное количество тестов для запуска')
 
-    parser.add_argument('--scalene',
-                       action='store_true',
-                       default=False,
-                       help='Включить scalene профилирование (если доступно)')
-
     parser.add_argument('--sanitize-paths',
                        type=parse_bool,
                        default=True,
@@ -106,7 +128,13 @@ def main():
     print("🔬 ЗАПУСК БЕНЧМАРКА С ПРОФИЛИРОВАНИЕМ")
     print("=" * 60)
     print(f"Библиотека: {args.library}")
-    print(f"Профилирование: {args.profiling}")
+    selected_profilers = args.profiling
+    profiling_mode = "off" if not selected_profilers else "full" if set(selected_profilers) == available_profilers else "custom"
+    print(f"Профилирование: {profiling_mode}")
+    if selected_profilers:
+        print(f"Профайлеры: {', '.join(selected_profilers)}")
+    else:
+        print("Профайлеры: отключены")
     print(f"Повторов каждого шага: {args.iterations}")
     print(f"Нормализация путей: {'включена' if args.sanitize_paths else 'выключена'}")
     
@@ -125,10 +153,12 @@ def main():
         runner = ProfilingBenchmarkRunner(
             adapter=adapter,
             results_dir=args.output_dir,
-            profiling_level=args.profiling,
+            profiling_mode=profiling_mode,
+            selected_profilers=selected_profilers,
             sanitize_paths=args.sanitize_paths,
-            enable_scalene=args.scalene
         )
+
+        effective_iterations = 1 if not selected_profilers else args.iterations
 
         # Сохраняем параметры запуска для воспроизводимости
         runner.set_run_parameters(
@@ -136,10 +166,12 @@ def main():
             tests=args.tests,
             resolved_test_dir=test_dir,
             profiling=args.profiling,
+            profiling_mode=profiling_mode,
+            profilers=selected_profilers,
             iterations=args.iterations,
+            effective_iterations=effective_iterations,
             output_dir=args.output_dir,
             max_tests=args.max_tests,
-            scalene=args.scalene,
             sanitize_paths=args.sanitize_paths,
         )
         
@@ -147,12 +179,12 @@ def main():
         print(f"\n🚀 Запуск тестов из: {test_dir}")
         summary = runner.run_test_suite(
             test_dir=test_dir,
-            iterations=args.iterations,
+            iterations=effective_iterations,
             max_tests=args.max_tests
         )
         
         # Выводим информацию о профилировании
-        if args.profiling != 'off':
+        if selected_profilers:
             profiling_dir = Path(runner.profiling_dir)
             reports_dir = profiling_dir / "reports"
             print(f"\n📊 ДАННЫЕ ПРОФИЛИРОВАНИЯ:")

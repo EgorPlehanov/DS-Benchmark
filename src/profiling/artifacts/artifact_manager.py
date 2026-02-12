@@ -89,9 +89,7 @@ class ArtifactManager:
         """Создает все необходимые поддиректории."""
         subdirs = [
             "input",
-            "profilers/system",
-            "profilers/scalene",
-            "profilers/memray",
+            "profilers",
             "test_results",
             "metrics",
             "visualizations",
