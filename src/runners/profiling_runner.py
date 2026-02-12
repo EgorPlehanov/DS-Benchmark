@@ -167,8 +167,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         return CompositeProfiler(profilers=profilers, auto_setup=False)
     
     def _measure_performance(self, func, *args, step_name: str = "", 
-                       test_name: str = "", iteration: int = 0,
-                       repeat_count: int = 1, **kwargs):
+                       test_name: str = "", repeat_count: int = 1, **kwargs):
         """
         Расширенное измерение производительности с профилированием.
         """
@@ -198,7 +197,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                     step_name=step_name,
                     profile_result=profile_result,
                     test_name=test_name,
-                    iteration=iteration,
                     repeat_count=repeat_count
                 )
                 
@@ -215,7 +213,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                         input_path=input_path,
                         adapter_name=self.adapter_name,
                         step_name=step_name,
-                        iteration=iteration,
+                        iteration=1,
                         test_name=test_name,
                         repeat=repeat_count
                     )
@@ -253,24 +251,20 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             }
     
     def _save_profiling_data(self, step_name: str, profile_result: CompositeProfileResult,
-                           test_name: str = "", iteration: int = 0,
-                           repeat_count: int = 1) -> None:
+                           test_name: str = "", repeat_count: int = 1) -> None:
         """Сохраняет данные профилирования с привязкой к тесту"""
         timestamp = datetime.now().strftime("%H%M%S")
         
         # ✅ СОЗДАЕМ ИМЯ ФАЙЛА С ИНФОРМАЦИЕЙ О ТЕСТЕ
-        if test_name and iteration > 0:
+        if test_name:
             filename = f"{test_name}_rep{repeat_count}_{step_name}_{timestamp}"
-        elif test_name:
-            filename = f"{test_name}_{step_name}_{timestamp}"
         else:
-            filename = f"{step_name}_{timestamp}"
+            filename = f"{step_name}_rep{repeat_count}_{timestamp}"
         
         # 1. Структурированный отчет
         report_data = {
             'step': step_name,
             'test_name': test_name,
-            'iteration': iteration,
             'timestamp': datetime.now().isoformat(),
             'total_duration': profile_result.total_duration,
             'bottlenecks': profile_result.bottlenecks,
@@ -292,7 +286,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             profiler_data = {
                 'profiler': profiler_name,
                 'test_name': test_name,
-                'iteration': iteration,
                 'step': step_name,
                 'data': self._prepare_profiler_payload(profiler_name, result.data),
                 'metadata': {
@@ -308,7 +301,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 data=profiler_data,
                 test_name=test_name or "unknown",
                 step_name=step_name,
-                iteration=iteration if iteration > 0 else 1,
                 repeat_count=repeat_count,
             )
 
@@ -317,7 +309,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         info_content = (
             f"Test: {test_name}\n"
             f"Step: {step_name}\n"
-            f"Iteration: {iteration}\n"
             f"Repeat count: {repeat_count}\n"
             f"Timestamp: {datetime.now().isoformat()}\n"
             f"Profiles: {', '.join(profile_result.results.keys())}\n"
@@ -340,7 +331,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                             test_name: str = "", step_repeat_count: int = 1) -> Dict[str, Any]:
         """Выполняет одну итерацию теста с профилированием"""
         iteration_results = {
-            "iteration": iteration_num,
+            "run": iteration_num,
             "performance": {}
         }
         
@@ -352,7 +343,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             loaded_data,
             step_name="step1_original",
             test_name=test_name,
-            iteration=iteration_num,
             repeat_count=step_repeat_count
         )
         iteration_results["step1"] = step1_results
@@ -367,7 +357,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             loaded_data,
             step_name="step2_dempster",
             test_name=test_name,
-            iteration=iteration_num,
             repeat_count=step_repeat_count
         )
         iteration_results["step2"] = step2_results
@@ -383,7 +372,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             alphas,
             step_name="step3_discount_dempster",
             test_name=test_name,
-            iteration=iteration_num,
             repeat_count=step_repeat_count
         )
         iteration_results["step3"] = step3_results
@@ -398,7 +386,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             loaded_data,
             step_name="step4_yager",
             test_name=test_name,
-            iteration=iteration_num,
             repeat_count=step_repeat_count
         )
         iteration_results["step4"] = step4_results
@@ -434,12 +421,14 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             "metadata": {
                 "test_name": test_name,
                 "adapter": self.adapter_name,
+                "run_count": 1,
                 "iterations": 1,
                 "step_repeat_count": step_repeat_count,
                 "timestamp": datetime.now().isoformat(),
                 "frame_size": len(test_data.get("frame_of_discernment", [])),
                 "sources_count": len(test_data.get("bba_sources", []))
             },
+            "runs": [],
             "iterations": [],
             "aggregated": {}
         }
@@ -463,17 +452,34 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             test_name=test_name,
             step_repeat_count=step_repeat_count
         )
+        test_results["runs"].append(iteration_results)
         test_results["iterations"].append(iteration_results)
         print(" ✓")
         
         test_results["aggregated"] = self._aggregate_iteration_results(
-            test_results["iterations"]
+            test_results["runs"]
         )
         
         self._save_test_results(test_results, test_name)
         self.results.append(test_results)
         
         return test_results
+
+
+    def _save_test_results(self, test_results: Dict[str, Any], test_name: str):
+        """Сохраняет результаты теста: во внутреннем API оставляем iterations, в файле сохраняем runs."""
+        persisted_results = {
+            **test_results,
+            "metadata": {
+                **test_results.get("metadata", {}),
+            },
+            "runs": list(test_results.get("runs") or test_results.get("iterations", [])),
+        }
+        persisted_results["metadata"].pop("iterations", None)
+        persisted_results.pop("iterations", None)
+
+        self.artifact_manager.save_test_results(persisted_results, test_name)
+        self._create_short_report(test_results, test_name)
 
     def _save_scalene_input(self, test_name: str, test_data: Dict[str, Any]) -> None:
         """Сохраняет входные данные теста для scalene."""

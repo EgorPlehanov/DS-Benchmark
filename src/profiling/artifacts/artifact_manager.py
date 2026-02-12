@@ -207,15 +207,18 @@ class ArtifactManager:
             filename = f"{safe_test_name}_{safe_step_name}_iter{iteration}_metrics.json"
         subdir = f"metrics/{safe_test_name}"
 
+        metadata = {
+            "test_name": safe_test_name,
+            "step_name": safe_step_name,
+            "repeat_count": repeat_count,
+            "saved_at": datetime.now().isoformat(),
+        }
+        if repeat_count is None:
+            metadata["iteration"] = iteration
+
         enhanced_metrics = {
             **metrics,
-            "_metadata": {
-                "test_name": safe_test_name,
-                "step_name": safe_step_name,
-                "iteration": iteration,
-                "repeat_count": repeat_count,
-                "saved_at": datetime.now().isoformat(),
-            },
+            "_metadata": metadata,
         }
 
         return self.save_json(filename, enhanced_metrics, subdir)
@@ -252,16 +255,19 @@ class ArtifactManager:
             filename = f"{safe_test_name}_{safe_step_name}_iter{iteration}_{safe_profiler_name}.json"
         subdir = f"profilers/{safe_profiler_name}/{safe_test_name}"
 
+        metadata = {
+            "profiler": safe_profiler_name,
+            "test_name": safe_test_name,
+            "step_name": safe_step_name,
+            "repeat_count": repeat_count,
+            "saved_at": datetime.now().isoformat(),
+        }
+        if repeat_count is None:
+            metadata["iteration"] = iteration
+
         enhanced_data = {
             **data,
-            "_metadata": {
-                "profiler": safe_profiler_name,
-                "test_name": safe_test_name,
-                "step_name": safe_step_name,
-                "iteration": iteration,
-                "repeat_count": repeat_count,
-                "saved_at": datetime.now().isoformat(),
-            },
+            "_metadata": metadata,
         }
 
         return self.save_json(filename, enhanced_data, subdir)
