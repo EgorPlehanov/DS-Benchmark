@@ -42,7 +42,10 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         super().__init__(adapter, results_dir)
 
         self.profiling_mode = profiling_mode
-        self.selected_profilers = list(dict.fromkeys(selected_profilers or ["cpu", "memory", "line", "scalene"]))
+        if selected_profilers is None:
+            self.selected_profilers = ["cpu", "memory", "line", "scalene"]
+        else:
+            self.selected_profilers = list(dict.fromkeys(selected_profilers))
         self.core_profilers = [name for name in self.selected_profilers if name != "scalene"]
         self.profiling_level = "off" if not self.selected_profilers else profiling_mode
         self.sanitize_paths = sanitize_paths

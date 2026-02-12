@@ -28,7 +28,8 @@ class ScaleneCollector:
         self.output_dir = Path(output_dir)
         self.enabled = enabled
         self.profile_only_dir = Path(profile_only_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        if self.enabled:
+            self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def is_available(self) -> bool:
         """Проверяет доступность scalene в PATH."""
