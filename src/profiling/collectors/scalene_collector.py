@@ -141,7 +141,7 @@ class ScaleneCollector:
                      iteration: int,
                      test_name: str,
                      alpha: float = 0.1,
-                     repeat: int = 1000) -> Dict[str, Any]:
+                     repeat: int = 10) -> Dict[str, Any]:
         """
         Запускает scalene для одного шага ДШ через временный скрипт.
         """
