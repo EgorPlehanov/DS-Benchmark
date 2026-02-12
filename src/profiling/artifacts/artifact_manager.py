@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 import logging
 
+from ..path_sanitizer import sanitize_payload_paths, sanitize_text_paths
+
 logger = logging.getLogger("ArtifactManager")
 
 
@@ -345,6 +347,56 @@ class ArtifactManager:
             shutil.rmtree(tmp_dir)
             tmp_dir.mkdir(exist_ok=True)
             logger.info("🧹 Очищены временные файлы")
+
+    def sanitize_saved_artifacts(self) -> Dict[str, int]:
+        """Пост-обработка: санитизирует пути во всех сохраненных текстовых артефактах.
+
+        Выполняется отдельным этапом после окончания бенчмарка,
+        чтобы не увеличивать накладные расходы на каждом шаге профилирования.
+        """
+        stats = {
+            "json_files_checked": 0,
+            "json_files_updated": 0,
+            "text_files_checked": 0,
+            "text_files_updated": 0,
+            "errors": 0,
+        }
+
+        text_exts = {".txt", ".log", ".html", ".htm", ".stderr", ".stdout"}
+
+        for file_path in self.run_dir.rglob("*"):
+            if not file_path.is_file():
+                continue
+
+            suffix = file_path.suffix.lower()
+            try:
+                if suffix == ".json":
+                    stats["json_files_checked"] += 1
+                    original_text = file_path.read_text(encoding="utf-8")
+                    data = json.loads(original_text)
+                    sanitized = sanitize_payload_paths(data)
+                    if sanitized != data:
+                        file_path.write_text(
+                            json.dumps(sanitized, indent=2, ensure_ascii=False),
+                            encoding="utf-8",
+                        )
+                        stats["json_files_updated"] += 1
+                    continue
+
+                name_lower = file_path.name.lower()
+                is_text_sidecar = name_lower.endswith(".stdout.txt") or name_lower.endswith(".stderr.txt")
+                if suffix in text_exts or is_text_sidecar:
+                    stats["text_files_checked"] += 1
+                    content = file_path.read_text(encoding="utf-8", errors="replace")
+                    sanitized = sanitize_text_paths(content)
+                    if sanitized != content:
+                        file_path.write_text(sanitized, encoding="utf-8")
+                        stats["text_files_updated"] += 1
+            except Exception:
+                stats["errors"] += 1
+
+        logger.info("🛡️ Пост-санитизация артефактов завершена: %s", stats)
+        return stats
 
     def archive(self, output_path: Optional[str] = None) -> Path:
         """Создает архив со всеми артефактами."""

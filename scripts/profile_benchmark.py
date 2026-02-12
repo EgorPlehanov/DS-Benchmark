@@ -138,6 +138,8 @@ def main():
     print(f"Повторов каждого шага: {args.iterations}")
     print(f"Нормализация путей: {'включена' if args.sanitize_paths else 'выключена'}")
     
+    runner = None
+
     try:
         # Получаем путь к тестам
         test_dir = get_test_dir(args.tests)
@@ -211,6 +213,12 @@ def main():
         import traceback
         traceback.print_exc()
         return 1
+    finally:
+        if runner is not None:
+            try:
+                runner.cleanup()
+            except Exception as cleanup_error:
+                print(f"⚠️  Ошибка при cleanup: {cleanup_error}")
 
 
 if __name__ == "__main__":

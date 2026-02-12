@@ -17,6 +17,7 @@ from ..profiling.core.cpu_profiler import CPUProfiler
 from ..profiling.core.memory_profiler import MemoryProfiler
 from ..profiling.core.line_profiler import LineProfiler
 from ..profiling.collectors import ScaleneCollector
+from ..profiling.path_sanitizer import sanitize_payload_paths
 
 
 class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
@@ -65,55 +66,13 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
 
         self.scalene_collector = ScaleneCollector(
             output_dir=str(self.artifact_manager.run_dir / "profilers" / "scalene"),
-            enabled=self.enable_scalene
+            enabled=self.enable_scalene,
         )
         
         print(f"🔧 ProfilingRunner инициализирован с режимом: {self.profiling_mode}")
         print(f"📊 Профилировщики: {', '.join(self.selected_profilers) if self.selected_profilers else 'отключены'}")
         print(f"🛡️  Нормализация путей: {'включена' if self.sanitize_paths else 'выключена'}")
         print(f"📈 Scalene: {self.scalene_collector.get_status()}")
-
-    def _make_path_relative(self, value: Any) -> Any:
-        """Преобразует абсолютные пути в относительные к cwd, если возможно."""
-        if not isinstance(value, str):
-            return value
-
-        if not value:
-            return value
-
-        normalized = value.replace("\\", "/")
-
-        if ":/" not in normalized and not normalized.startswith("/"):
-            return value
-
-        try:
-            abs_path = Path(value).resolve()
-            cwd_path = Path.cwd().resolve()
-            relative = abs_path.relative_to(cwd_path)
-            return str(relative).replace("\\", "/")
-        except Exception:
-            # Если путь вне проекта или недоступен, не раскрываем локальные детали.
-            return "<external_path>"
-
-    def _sanitize_paths_in_value(self, value: Any) -> Any:
-        """Рекурсивно нормализует пути во всех строковых значениях структуры данных."""
-        if isinstance(value, dict):
-            sanitized_dict = {}
-            for key, item in value.items():
-                sanitized_key = self._make_path_relative(key) if isinstance(key, str) else key
-                sanitized_dict[sanitized_key] = self._sanitize_paths_in_value(item)
-            return sanitized_dict
-
-        if isinstance(value, list):
-            return [self._sanitize_paths_in_value(item) for item in value]
-
-        if isinstance(value, tuple):
-            return tuple(self._sanitize_paths_in_value(item) for item in value)
-
-        if isinstance(value, str):
-            return self._make_path_relative(value)
-
-        return value
 
     def _prepare_profiler_payload(self, profiler_name: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Возвращает полные raw-данные профилировщика с опциональной нормализацией путей."""
@@ -122,7 +81,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         if not self.sanitize_paths:
             return payload
 
-        return self._sanitize_paths_in_value(payload)
+        return sanitize_payload_paths(payload)
     
     def _setup_profiler(self) -> CompositeProfiler:
         """Настраивает композитный профилировщик в зависимости от уровня"""
@@ -182,7 +141,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                         test_name=test_name,
                         repeat=repeat_count
                     )
-                    base_metrics["scalene"] = scalene_info
+                    base_metrics["scalene"] = self._prepare_profiler_payload("scalene", scalene_info)
             return result, base_metrics
         
         print(f"   📊 Профилирование {step_name}...", end="", flush=True)
@@ -228,7 +187,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                         test_name=test_name,
                         repeat=repeat_count
                     )
-                    base_metrics["scalene"] = scalene_info
+                    base_metrics["scalene"] = self._prepare_profiler_payload("scalene", scalene_info)
 
             base_metrics["step_repeat_count"] = repeat_count
             
@@ -502,6 +461,12 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
     
     def cleanup(self):
         """Очистка ресурсов"""
+        if self.sanitize_paths:
+            try:
+                self.artifact_manager.sanitize_saved_artifacts()
+            except Exception as e:
+                print(f"⚠️  Ошибка при пост-санитизации артефактов: {e}")
+
         super().cleanup()
         if hasattr(self, 'profiler') and self.profiler:
             if hasattr(self.profiler, 'cleanup'):

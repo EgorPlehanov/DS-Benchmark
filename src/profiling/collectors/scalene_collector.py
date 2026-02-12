@@ -15,7 +15,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-
 class ScaleneCollector:
     """
     Сборщик сырых профилей через scalene CLI.
