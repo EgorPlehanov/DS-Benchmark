@@ -79,7 +79,7 @@ def main():
     parser.add_argument('--iterations',
                        type=int,
                        default=3,
-                       help='Количество итераций каждого теста')
+                       help='Количество повторов каждого шага внутри одного прогона теста')
     
     parser.add_argument('--output-dir',
                        default='results/profiling',
@@ -107,7 +107,7 @@ def main():
     print("=" * 60)
     print(f"Библиотека: {args.library}")
     print(f"Профилирование: {args.profiling}")
-    print(f"Итераций: {args.iterations}")
+    print(f"Повторов каждого шага: {args.iterations}")
     print(f"Нормализация путей: {'включена' if args.sanitize_paths else 'выключена'}")
     
     try:

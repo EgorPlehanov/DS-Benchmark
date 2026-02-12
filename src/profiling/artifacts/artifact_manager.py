@@ -197,21 +197,28 @@ class ArtifactManager:
         logger.debug("📋 Скопирован файл: %s -> %s", source, dest_path)
         return dest_path
 
-    def save_metrics(self, metrics: Dict[str, Any], test_name: str, step_name: str, iteration: int = 1) -> Path:
+    def save_metrics(self, metrics: Dict[str, Any], test_name: str, step_name: str, iteration: int = 1, repeat_count: Optional[int] = None) -> Path:
         """Сохраняет метрики профилирования."""
         safe_test_name = self._sanitize_name(test_name)
         safe_step_name = self._sanitize_name(step_name)
-        filename = f"{safe_test_name}_{safe_step_name}_iter{iteration}_metrics.json"
+        if repeat_count is not None:
+            filename = f"{safe_test_name}_{safe_step_name}_rep{repeat_count}_metrics.json"
+        else:
+            filename = f"{safe_test_name}_{safe_step_name}_iter{iteration}_metrics.json"
         subdir = f"metrics/{safe_test_name}"
+
+        metadata = {
+            "test_name": safe_test_name,
+            "step_name": safe_step_name,
+            "repeat_count": repeat_count,
+            "saved_at": datetime.now().isoformat(),
+        }
+        if repeat_count is None:
+            metadata["iteration"] = iteration
 
         enhanced_metrics = {
             **metrics,
-            "_metadata": {
-                "test_name": safe_test_name,
-                "step_name": safe_step_name,
-                "iteration": iteration,
-                "saved_at": datetime.now().isoformat(),
-            },
+            "_metadata": metadata,
         }
 
         return self.save_json(filename, enhanced_metrics, subdir)
@@ -235,24 +242,32 @@ class ArtifactManager:
         test_name: str,
         step_name: str,
         iteration: int = 1,
+        repeat_count: Optional[int] = None,
     ) -> Path:
         """Сохраняет данные профилировщика."""
         safe_profiler_name = self._sanitize_name(profiler_name)
         safe_test_name = self._sanitize_name(test_name)
         safe_step_name = self._sanitize_name(step_name)
 
-        filename = f"{safe_test_name}_{safe_step_name}_iter{iteration}_{safe_profiler_name}.json"
+        if repeat_count is not None:
+            filename = f"{safe_test_name}_{safe_step_name}_rep{repeat_count}_{safe_profiler_name}.json"
+        else:
+            filename = f"{safe_test_name}_{safe_step_name}_iter{iteration}_{safe_profiler_name}.json"
         subdir = f"profilers/{safe_profiler_name}/{safe_test_name}"
+
+        metadata = {
+            "profiler": safe_profiler_name,
+            "test_name": safe_test_name,
+            "step_name": safe_step_name,
+            "repeat_count": repeat_count,
+            "saved_at": datetime.now().isoformat(),
+        }
+        if repeat_count is None:
+            metadata["iteration"] = iteration
 
         enhanced_data = {
             **data,
-            "_metadata": {
-                "profiler": safe_profiler_name,
-                "test_name": safe_test_name,
-                "step_name": safe_step_name,
-                "iteration": iteration,
-                "saved_at": datetime.now().isoformat(),
-            },
+            "_metadata": metadata,
         }
 
         return self.save_json(filename, enhanced_data, subdir)
