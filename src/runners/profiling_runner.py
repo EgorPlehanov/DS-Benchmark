@@ -6,6 +6,7 @@ ProfilingRunner - расширение UniversalBenchmarkRunner с поддер�
 import os
 import json
 import copy
+import shutil
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from pathlib import Path
@@ -39,13 +40,15 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             selected_profilers: Список активных профилировщиков (cpu, memory, line, scalene)
             sanitize_paths: Нормализовать пути в raw-данных (по умолчанию: True)
         """
+        if selected_profilers is None:
+            resolved_selected_profilers = ["cpu", "memory", "line", "scalene"]
+        else:
+            resolved_selected_profilers = list(dict.fromkeys(selected_profilers))
+
         super().__init__(adapter, results_dir)
 
         self.profiling_mode = profiling_mode
-        if selected_profilers is None:
-            self.selected_profilers = ["cpu", "memory", "line", "scalene"]
-        else:
-            self.selected_profilers = list(dict.fromkeys(selected_profilers))
+        self.selected_profilers = resolved_selected_profilers
         self.core_profilers = [name for name in self.selected_profilers if name != "scalene"]
         self.profiling_level = "off" if not self.selected_profilers else profiling_mode
         self.sanitize_paths = sanitize_paths
@@ -54,6 +57,11 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         
         # Базовый путь профилирования в структуре артефактов
         self.profiling_dir = str(self.artifact_manager.run_dir / "profilers")
+
+        if not self.selected_profilers:
+            profilers_dir = Path(self.profiling_dir)
+            if profilers_dir.exists():
+                shutil.rmtree(profilers_dir, ignore_errors=True)
 
         self.scalene_collector = ScaleneCollector(
             output_dir=str(self.artifact_manager.run_dir / "profilers" / "scalene"),
