@@ -167,7 +167,8 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         return CompositeProfiler(profilers=profilers, auto_setup=False)
     
     def _measure_performance(self, func, *args, step_name: str = "", 
-                       test_name: str = "", iteration: int = 0, **kwargs):
+                       test_name: str = "", iteration: int = 0,
+                       repeat_count: int = 1, **kwargs):
         """
         Расширенное измерение производительности с профилированием.
         """
@@ -197,7 +198,8 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                     step_name=step_name,
                     profile_result=profile_result,
                     test_name=test_name,
-                    iteration=iteration
+                    iteration=iteration,
+                    repeat_count=repeat_count
                 )
                 
                 base_metrics["profiling"] = {
@@ -214,9 +216,12 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                         adapter_name=self.adapter_name,
                         step_name=step_name,
                         iteration=iteration,
-                        test_name=test_name
+                        test_name=test_name,
+                        repeat=repeat_count
                     )
                     base_metrics["scalene"] = scalene_info
+
+            base_metrics["step_repeat_count"] = repeat_count
             
             # ✅ ПРАВИЛЬНАЯ ОБРАБОТКА ОШИБОК
             if 'error' in profile_result.metadata:
@@ -247,14 +252,15 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 "error_type": type(e).__name__
             }
     
-    def _save_profiling_data(self, step_name: str, profile_result: CompositeProfileResult, 
-                           test_name: str = "", iteration: int = 0) -> None:
+    def _save_profiling_data(self, step_name: str, profile_result: CompositeProfileResult,
+                           test_name: str = "", iteration: int = 0,
+                           repeat_count: int = 1) -> None:
         """Сохраняет данные профилирования с привязкой к тесту"""
         timestamp = datetime.now().strftime("%H%M%S")
         
         # ✅ СОЗДАЕМ ИМЯ ФАЙЛА С ИНФОРМАЦИЕЙ О ТЕСТЕ
         if test_name and iteration > 0:
-            filename = f"{test_name}_iter{iteration}_{step_name}_{timestamp}"
+            filename = f"{test_name}_rep{repeat_count}_{step_name}_{timestamp}"
         elif test_name:
             filename = f"{test_name}_{step_name}_{timestamp}"
         else:
@@ -269,7 +275,10 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             'total_duration': profile_result.total_duration,
             'bottlenecks': profile_result.bottlenecks,
             'correlations': profile_result.correlations,
-            'metadata': profile_result.metadata
+            'metadata': {
+                **profile_result.metadata,
+                'step_repeat_count': repeat_count
+            }
         }
         
         self.artifact_manager.save_json(
@@ -289,7 +298,8 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 'metadata': {
                     **result.metadata,
                     'raw_profile_mode': 'full',
-                    'sanitize_paths': self.sanitize_paths
+                    'sanitize_paths': self.sanitize_paths,
+                    'step_repeat_count': repeat_count
                 }
             }
             
@@ -299,6 +309,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 test_name=test_name or "unknown",
                 step_name=step_name,
                 iteration=iteration if iteration > 0 else 1,
+                repeat_count=repeat_count,
             )
 
         
@@ -307,6 +318,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             f"Test: {test_name}\n"
             f"Step: {step_name}\n"
             f"Iteration: {iteration}\n"
+            f"Repeat count: {repeat_count}\n"
             f"Timestamp: {datetime.now().isoformat()}\n"
             f"Profiles: {', '.join(profile_result.results.keys())}\n"
         )
@@ -316,9 +328,16 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             subdir=f"profilers/info/{test_name or 'unknown'}"
         )
 
+    def _repeat_step(self, func, repeat_count: int, *args, **kwargs):
+        """Выполняет шаг несколько раз и возвращает результат последнего запуска."""
+        result = None
+        for _ in range(max(1, repeat_count)):
+            result = func(*args, **kwargs)
+        return result
+
     def _run_single_iteration(self, loaded_data: Any, test_data: Dict[str, Any],
-                            iteration_num: int, alphas: List[float], 
-                            test_name: str = "") -> Dict[str, Any]:
+                            iteration_num: int, alphas: List[float],
+                            test_name: str = "", step_repeat_count: int = 1) -> Dict[str, Any]:
         """Выполняет одну итерацию теста с профилированием"""
         iteration_results = {
             "iteration": iteration_num,
@@ -327,52 +346,64 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         
         # Шаг 1
         step1_results, step1_metrics = self._measure_performance(
+            self._repeat_step,
             self._execute_step1,
+            step_repeat_count,
             loaded_data,
             step_name="step1_original",
             test_name=test_name,
-            iteration=iteration_num
+            iteration=iteration_num,
+            repeat_count=step_repeat_count
         )
         iteration_results["step1"] = step1_results
         iteration_results["performance"]["step1"] = step1_metrics
-        self.artifact_manager.save_metrics(step1_metrics, test_name or "unknown", "step1_original", iteration_num)
+        self.artifact_manager.save_metrics(step1_metrics, test_name or "unknown", "step1_original", iteration_num, repeat_count=step_repeat_count)
         
         # Шаг 2
         step2_results, step2_metrics = self._measure_performance(
+            self._repeat_step,
             self._execute_step2,
+            step_repeat_count,
             loaded_data,
             step_name="step2_dempster",
             test_name=test_name,
-            iteration=iteration_num
+            iteration=iteration_num,
+            repeat_count=step_repeat_count
         )
         iteration_results["step2"] = step2_results
         iteration_results["performance"]["step2"] = step2_metrics
-        self.artifact_manager.save_metrics(step2_metrics, test_name or "unknown", "step2_dempster", iteration_num)
+        self.artifact_manager.save_metrics(step2_metrics, test_name or "unknown", "step2_dempster", iteration_num, repeat_count=step_repeat_count)
         
         # Шаг 3
         step3_results, step3_metrics = self._measure_performance(
+            self._repeat_step,
             self._execute_step3,
+            step_repeat_count,
             loaded_data,
             alphas,
             step_name="step3_discount_dempster",
             test_name=test_name,
-            iteration=iteration_num
+            iteration=iteration_num,
+            repeat_count=step_repeat_count
         )
         iteration_results["step3"] = step3_results
         iteration_results["performance"]["step3"] = step3_metrics
-        self.artifact_manager.save_metrics(step3_metrics, test_name or "unknown", "step3_discount_dempster", iteration_num)
+        self.artifact_manager.save_metrics(step3_metrics, test_name or "unknown", "step3_discount_dempster", iteration_num, repeat_count=step_repeat_count)
         
         # Шаг 4
         step4_results, step4_metrics = self._measure_performance(
+            self._repeat_step,
             self._execute_step4,
+            step_repeat_count,
             loaded_data,
             step_name="step4_yager",
             test_name=test_name,
-            iteration=iteration_num
+            iteration=iteration_num,
+            repeat_count=step_repeat_count
         )
         iteration_results["step4"] = step4_results
         iteration_results["performance"]["step4"] = step4_metrics
-        self.artifact_manager.save_metrics(step4_metrics, test_name or "unknown", "step4_yager", iteration_num)
+        self.artifact_manager.save_metrics(step4_metrics, test_name or "unknown", "step4_yager", iteration_num, repeat_count=step_repeat_count)
         
         # Общая статистика
         iteration_results["performance"]["total"] = {
@@ -390,15 +421,21 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
     
     def run_test(self, test_data: Dict[str, Any], test_name: str,
                 iterations: int = 3, alphas: Optional[List[float]] = None) -> Dict[str, Any]:
-        """Запускает тест с профилированием"""
+        """Запускает тест с профилированием.
+
+        iterations интерпретируется как количество повторов каждого шага
+        внутри одного прогона теста.
+        """
         print(f"\n🧪 Запуск теста: {test_name}")
-        print(f"   Итераций: {iterations}")
+        print(f"   Повторов на шаг: {iterations}")
+        step_repeat_count = max(1, iterations)
         
         test_results = {
             "metadata": {
                 "test_name": test_name,
                 "adapter": self.adapter_name,
-                "iterations": iterations,
+                "iterations": 1,
+                "step_repeat_count": step_repeat_count,
                 "timestamp": datetime.now().isoformat(),
                 "frame_size": len(test_data.get("frame_of_discernment", [])),
                 "sources_count": len(test_data.get("bba_sources", []))
@@ -417,19 +454,17 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             sources_count = self.adapter.get_sources_count(loaded_data)
             alphas = [0.1] * sources_count
         
-        for i in range(iterations):
-            print(f"   Итерация {i+1}/{iterations}...", end="", flush=True)
-            
-            iteration_results = self._run_single_iteration(
-                loaded_data=loaded_data,
-                test_data=test_data,
-                iteration_num=i+1,
-                alphas=alphas,
-                test_name=test_name  # ✅ Передаем имя теста
-            )
-            
-            test_results["iterations"].append(iteration_results)
-            print(" ✓")
+        print("   Итерация 1/1...", end="", flush=True)
+        iteration_results = self._run_single_iteration(
+            loaded_data=loaded_data,
+            test_data=test_data,
+            iteration_num=1,
+            alphas=alphas,
+            test_name=test_name,
+            step_repeat_count=step_repeat_count
+        )
+        test_results["iterations"].append(iteration_results)
+        print(" ✓")
         
         test_results["aggregated"] = self._aggregate_iteration_results(
             test_results["iterations"]

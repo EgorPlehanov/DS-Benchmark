@@ -51,7 +51,8 @@ class ScaleneCollector:
                        script_args: Optional[List[str]] = None,
                        test_name: str = "test",
                        step_name: str = "step",
-                       iteration: int = 1) -> Dict[str, Any]:
+                       iteration: int = 1,
+                       repeat_count: Optional[int] = None) -> Dict[str, Any]:
         """
         Запускает scalene для отдельного python-скрипта.
         Возвращает информацию о сохраненном HTML-отчете.
@@ -71,7 +72,10 @@ class ScaleneCollector:
             return info
 
         timestamp = datetime.now().strftime("%H%M%S")
-        html_filename = f"{test_name}_{step_name}_iter{iteration}_{timestamp}.html"
+        if repeat_count is not None:
+            html_filename = f"{test_name}_{step_name}_rep{repeat_count}_{timestamp}.html"
+        else:
+            html_filename = f"{test_name}_{step_name}_iter{iteration}_{timestamp}.html"
         html_path = (self.output_dir / html_filename).resolve()
         info["html_path"] = str(html_path)
 
@@ -141,14 +145,14 @@ class ScaleneCollector:
                      iteration: int,
                      test_name: str,
                      alpha: float = 0.1,
-                     repeat: int = 1000) -> Dict[str, Any]:
+                     repeat: int = 1) -> Dict[str, Any]:
         """
         Запускает scalene для одного шага ДШ через временный скрипт.
         """
         tmp_dir = self.output_dir / "tmp"
         tmp_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%H%M%S")
-        script_path = tmp_dir / f"scalene_{test_name}_{step_name}_iter{iteration}_{timestamp}.py"
+        script_path = tmp_dir / f"scalene_{test_name}_{step_name}_rep{repeat}_{timestamp}.py"
 
         script_path.write_text(
             self._build_step_script(),
@@ -167,7 +171,8 @@ class ScaleneCollector:
                 ],
                 test_name=test_name,
                 step_name=step_name,
-                iteration=iteration
+                iteration=iteration,
+                repeat_count=repeat
             )
         finally:
             if script_path.exists():
@@ -196,7 +201,7 @@ class ScaleneCollector:
                 parser.add_argument("--step", required=True, help="Step name")
                 parser.add_argument("--input", required=True, help="Path to DASS test JSON")
                 parser.add_argument("--alpha", type=float, default=0.1, help="Discounting alpha for step3")
-                parser.add_argument("--repeat", type=int, default=30, help="Repeat count to ensure enough profiling samples")
+                parser.add_argument("--repeat", type=int, default=1, help="Repeat count to ensure enough profiling samples")
                 return parser.parse_args()
 
 
