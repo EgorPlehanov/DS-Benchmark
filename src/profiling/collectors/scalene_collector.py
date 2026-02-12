@@ -164,7 +164,7 @@ class ScaleneCollector:
         """
         Запускает scalene для одного шага ДШ через временный скрипт.
         """
-        tmp_dir = self.output_dir / "tmp" / self._sanitize_name(test_name)
+        tmp_dir = self.output_dir / "tmp"
         tmp_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%H%M%S")
         script_path = tmp_dir / f"scalene_{test_name}_{step_name}_rep{repeat}_{timestamp}.py"
