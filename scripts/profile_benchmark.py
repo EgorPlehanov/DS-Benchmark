@@ -79,7 +79,7 @@ def main():
     parser.add_argument('--iterations',
                        type=int,
                        default=3,
-                       help='Количество итераций каждого теста')
+                       help='Количество повторов каждого шага внутри одного прогона теста')
     
     parser.add_argument('--output-dir',
                        default='results/profiling',
@@ -107,7 +107,7 @@ def main():
     print("=" * 60)
     print(f"Библиотека: {args.library}")
     print(f"Профилирование: {args.profiling}")
-    print(f"Итераций: {args.iterations}")
+    print(f"Повторов каждого шага: {args.iterations}")
     print(f"Нормализация путей: {'включена' if args.sanitize_paths else 'выключена'}")
     
     try:
@@ -129,6 +129,19 @@ def main():
             sanitize_paths=args.sanitize_paths,
             enable_scalene=args.scalene
         )
+
+        # Сохраняем параметры запуска для воспроизводимости
+        runner.set_run_parameters(
+            library=args.library,
+            tests=args.tests,
+            resolved_test_dir=test_dir,
+            profiling=args.profiling,
+            iterations=args.iterations,
+            output_dir=args.output_dir,
+            max_tests=args.max_tests,
+            scalene=args.scalene,
+            sanitize_paths=args.sanitize_paths,
+        )
         
         # Запускаем тесты
         print(f"\n🚀 Запуск тестов из: {test_dir}")
@@ -140,14 +153,18 @@ def main():
         
         # Выводим информацию о профилировании
         if args.profiling != 'off':
-            profiling_dir = runner.profiling_dir
+            profiling_dir = Path(runner.profiling_dir)
+            reports_dir = profiling_dir / "reports"
             print(f"\n📊 ДАННЫЕ ПРОФИЛИРОВАНИЯ:")
-            print(f"   Отчеты: {profiling_dir}/reports/")
-            print(f"   Сырые данные: {profiling_dir}/raw/")
+            print(f"   Отчеты: {reports_dir}")
+            print(f"   Сырые данные профайлеров: {profiling_dir}")
             
             # Подсчитываем количество файлов
-            report_files = list(Path(profiling_dir).glob("reports/*.json"))
-            raw_files = list(Path(profiling_dir).glob("raw/*.json"))
+            report_files = list(reports_dir.rglob("*.json"))
+            raw_files = [
+                p for p in profiling_dir.rglob("*.json")
+                if "reports" not in p.parts and "inputs" not in p.parts
+            ]
             
             print(f"   Сохранено отчетов: {len(report_files)}")
             print(f"   Сохранено сырых файлов: {len(raw_files)}")
