@@ -7,6 +7,7 @@ ScaleneCollector - запуск scalene для сбора сырых профи�
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import textwrap
@@ -30,6 +31,18 @@ class ScaleneCollector:
         self.profile_only_dir = Path(profile_only_dir)
         if self.enabled:
             self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _sanitize_name(value: str) -> str:
+        """Нормализует имя для использования в пути."""
+        normalized = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value).strip())
+        return normalized.strip("._") or "unknown"
+
+    def _get_test_output_dir(self, test_name: str) -> Path:
+        """Возвращает директорию для конкретного теста."""
+        test_dir = self.output_dir / self._sanitize_name(test_name)
+        test_dir.mkdir(parents=True, exist_ok=True)
+        return test_dir
 
     def is_available(self) -> bool:
         """Проверяет доступность scalene в PATH."""
@@ -73,11 +86,12 @@ class ScaleneCollector:
             return info
 
         timestamp = datetime.now().strftime("%H%M%S")
+        test_output_dir = self._get_test_output_dir(test_name)
         if repeat_count is not None:
             html_filename = f"{test_name}_{step_name}_rep{repeat_count}_{timestamp}.html"
         else:
             html_filename = f"{test_name}_{step_name}_iter{iteration}_{timestamp}.html"
-        html_path = (self.output_dir / html_filename).resolve()
+        html_path = (test_output_dir / html_filename).resolve()
         info["html_path"] = str(html_path)
 
         args = [
@@ -113,24 +127,24 @@ class ScaleneCollector:
                 env=env
             )
             if completed.stdout:
-                (self.output_dir / f"{html_filename}.stdout.txt").write_text(
+                (test_output_dir / f"{html_filename}.stdout.txt").write_text(
                     completed.stdout,
                     encoding="utf-8"
                 )
             if completed.stderr:
-                (self.output_dir / f"{html_filename}.stderr.txt").write_text(
+                (test_output_dir / f"{html_filename}.stderr.txt").write_text(
                     completed.stderr,
                     encoding="utf-8"
                 )
         except Exception as exc:  # noqa: BLE001 - сохраняем ошибку профилирования
             if isinstance(exc, subprocess.CalledProcessError):
                 if exc.stdout:
-                    (self.output_dir / f"{html_filename}.stdout.txt").write_text(
+                    (test_output_dir / f"{html_filename}.stdout.txt").write_text(
                         exc.stdout,
                         encoding="utf-8"
                     )
                 if exc.stderr:
-                    (self.output_dir / f"{html_filename}.stderr.txt").write_text(
+                    (test_output_dir / f"{html_filename}.stderr.txt").write_text(
                         exc.stderr,
                         encoding="utf-8"
                     )
