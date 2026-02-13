@@ -59,6 +59,16 @@ class ScaleneCollector:
         # Используем полные пути без дубликатов, чтобы избежать лишнего шума в profile_only.
         return [str(py_file.resolve().as_posix()) for py_file in python_files]
 
+    def _capture_scalene_profile_json(self, test_output_dir: Path, html_path: Path) -> Optional[str]:
+        """Сохраняет raw profile.json как артефакт конкретного шага (если создан Scalene)."""
+        raw_profile_path = test_output_dir / "profile.json"
+        if not raw_profile_path.exists():
+            return None
+
+        target_profile_path = html_path.with_suffix(".profile.json")
+        raw_profile_path.replace(target_profile_path)
+        return str(target_profile_path.resolve())
+
     def profile_script(self,
                        script_path: Path,
                        script_args: Optional[List[str]] = None,
@@ -148,6 +158,10 @@ class ScaleneCollector:
                         encoding="utf-8"
                     )
             info["error"] = str(exc)
+        finally:
+            profile_json_path = self._capture_scalene_profile_json(test_output_dir, html_path)
+            if profile_json_path:
+                info["profile_json_path"] = profile_json_path
 
         return info
 
