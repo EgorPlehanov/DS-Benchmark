@@ -274,20 +274,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 repeat_count=repeat_count,
             )
 
-        
-        # 3. Краткая информация для быстрого поиска
-        info_content = (
-            f"Test: {test_name}\n"
-            f"Step: {step_name}\n"
-            f"Repeat count: {repeat_count}\n"
-            f"Timestamp: {datetime.now().isoformat()}\n"
-            f"Profiles: {', '.join(profile_result.results.keys())}\n"
-        )
-        self.artifact_manager.save_text(
-            f"{filename}_info.txt",
-            info_content,
-            subdir=f"profilers/info/{test_name or 'unknown'}"
-        )
 
     def _repeat_step(self, func, repeat_count: int, *args, **kwargs):
         """Выполняет шаг несколько раз и возвращает результат последнего запуска."""
