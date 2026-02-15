@@ -15,7 +15,7 @@ project_root = current_file.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.runners.profiling_runner import ProfilingBenchmarkRunner
-from src.adapters.our_adapter import OurImplementationAdapter
+from src.adapters.factory import create_adapter, list_adapters
 
 
 def get_test_dir(tests_arg: str) -> str:
@@ -91,7 +91,7 @@ def main():
     
     parser.add_argument('--library', 
                        default='our',
-                       choices=['our'],  # Позже добавим другие библиотеки
+                       choices=list_adapters(),
                        help='Библиотека для тестирования')
     
     parser.add_argument('--tests',
@@ -146,10 +146,7 @@ def main():
         print(f"Тесты: {test_dir}")
         
         # Создаем адаптер
-        if args.library == 'our':
-            adapter = OurImplementationAdapter()
-        else:
-            raise ValueError(f"Библиотека {args.library} не поддерживается")
+        adapter = create_adapter(args.library)
         
         # Создаем раннер с профилированием
         runner = ProfilingBenchmarkRunner(
