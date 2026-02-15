@@ -14,8 +14,45 @@ current_file = Path(__file__).resolve()
 project_root = current_file.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.runners.profiling_runner import ProfilingBenchmarkRunner
+from importlib.util import find_spec
+
 from src.adapters.our_adapter import OurImplementationAdapter
+from src.adapters.external import DempsterShaferPyAdapter, PyDSAdapter
+
+
+def available_adapter_specs():
+    """Минимальный каталог адаптеров без отдельного реестра."""
+    return {
+        "our": {
+            "title": "Наша реализация (dempster_core)",
+            "dependency": None,
+            "factory": OurImplementationAdapter,
+        },
+        "pyds": {
+            "title": "PyDS (MassFunction)",
+            "dependency": "pyds",
+            "factory": PyDSAdapter,
+        },
+        "dempster_shafer": {
+            "title": "python-package dempster_shafer",
+            "dependency": "dempster_shafer",
+            "factory": DempsterShaferPyAdapter,
+        },
+    }
+
+
+def adapter_status(spec: dict) -> str:
+    dependency = spec.get("dependency")
+    if dependency is None:
+        return "available"
+    return "available" if find_spec(dependency) is not None else "missing_dependency"
+
+
+def create_adapter(key: str):
+    specs = available_adapter_specs()
+    if key not in specs:
+        raise ValueError(f"Неизвестный адаптер '{key}'. Доступные варианты: {', '.join(sorted(specs))}")
+    return specs[key]["factory"]()
 
 
 def get_test_dir(tests_arg: str) -> str:
@@ -89,9 +126,9 @@ def main():
         description='Запуск бенчмарков с профилированием Демпстера-Шейфера'
     )
     
-    parser.add_argument('--library', 
+    parser.add_argument('--library',
                        default='our',
-                       choices=['our'],  # Позже добавим другие библиотеки
+                       choices=sorted(available_adapter_specs().keys()),
                        help='Библиотека для тестирования')
     
     parser.add_argument('--tests',
@@ -128,6 +165,11 @@ def main():
     print("🔬 ЗАПУСК БЕНЧМАРКА С ПРОФИЛИРОВАНИЕМ")
     print("=" * 60)
     print(f"Библиотека: {args.library}")
+    print("Варианты адаптеров:")
+    for key, info in available_adapter_specs().items():
+        status = adapter_status(info)
+        marker = "✅" if status == "available" else "⚠️"
+        print(f"  {marker} {key}: {info['title']} [{status}]")
     selected_profilers = args.profiling
     profiling_mode = "off" if not selected_profilers else "full" if set(selected_profilers) == available_profilers else "custom"
     print(f"Профилирование: {profiling_mode}")
@@ -146,11 +188,10 @@ def main():
         print(f"Тесты: {test_dir}")
         
         # Создаем адаптер
-        if args.library == 'our':
-            adapter = OurImplementationAdapter()
-        else:
-            raise ValueError(f"Библиотека {args.library} не поддерживается")
+        adapter = create_adapter(args.library)
         
+        from src.runners.profiling_runner import ProfilingBenchmarkRunner
+
         # Создаем раннер с профилированием
         runner = ProfilingBenchmarkRunner(
             adapter=adapter,
