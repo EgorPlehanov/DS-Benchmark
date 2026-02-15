@@ -1,5 +1,7 @@
 """Адаптер для библиотеки pyds (MassFunction)."""
 
+import importlib
+import importlib.util
 from typing import Any, Dict, List, Set, Union
 
 from .base_adapter import BaseDempsterShaferAdapter
@@ -14,13 +16,31 @@ class PyDSAdapter(BaseDempsterShaferAdapter):
     def _ensure_backend(self):
         if self._MassFunction is not None:
             return
-        try:
-            from pyds import MassFunction  # type: ignore
-        except ImportError as exc:
-            raise ImportError(
-                "Для использования PyDSAdapter установите пакет `pyds`."
-            ) from exc
-        self._MassFunction = MassFunction
+        mass_function = self._resolve_mass_function()
+        if mass_function is not None:
+            self._MassFunction = mass_function
+            return
+
+        raise ImportError(
+            "Не удалось импортировать MassFunction для PyDSAdapter. "
+            "На PyPI есть одноименный пакет `pyds`, который не содержит реализацию "
+            "теории Демпстера-Шейфера. Установите корректный backend "
+            "(например, `py_dempster_shafer`) или используйте `--library our`."
+        )
+
+    def _resolve_mass_function(self):
+        if importlib.util.find_spec("pyds") is not None:
+            module = importlib.import_module("pyds")
+            mass_function = getattr(module, "MassFunction", None)
+            if mass_function is not None:
+                return mass_function
+
+        pyds_spec = importlib.util.find_spec("pyds")
+        if pyds_spec is not None and importlib.util.find_spec("pyds.pyds") is not None:
+            nested_module = importlib.import_module("pyds.pyds")
+            return getattr(nested_module, "MassFunction", None)
+
+        return None
 
     def load_from_dass(self, dass_data: Dict[str, Any]) -> Dict[str, Any]:
         self._ensure_backend()
