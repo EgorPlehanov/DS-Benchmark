@@ -14,45 +14,7 @@ current_file = Path(__file__).resolve()
 project_root = current_file.parent.parent
 sys.path.insert(0, str(project_root))
 
-from importlib.util import find_spec
-
-from src.adapters.our_adapter import OurImplementationAdapter
-from src.adapters.external import DempsterShaferPyAdapter, PyDSAdapter
-
-
-def available_adapter_specs():
-    """Минимальный каталог адаптеров без отдельного реестра."""
-    return {
-        "our": {
-            "title": "Наша реализация (dempster_core)",
-            "dependency": None,
-            "factory": OurImplementationAdapter,
-        },
-        "pyds": {
-            "title": "PyDS (MassFunction)",
-            "dependency": "pyds",
-            "factory": PyDSAdapter,
-        },
-        "dempster_shafer": {
-            "title": "python-package dempster_shafer",
-            "dependency": "dempster_shafer",
-            "factory": DempsterShaferPyAdapter,
-        },
-    }
-
-
-def adapter_status(spec: dict) -> str:
-    dependency = spec.get("dependency")
-    if dependency is None:
-        return "available"
-    return "available" if find_spec(dependency) is not None else "missing_dependency"
-
-
-def create_adapter(key: str):
-    specs = available_adapter_specs()
-    if key not in specs:
-        raise ValueError(f"Неизвестный адаптер '{key}'. Доступные варианты: {', '.join(sorted(specs))}")
-    return specs[key]["factory"]()
+from src.adapters.catalog import adapter_choices, create_adapter, list_adapter_options
 
 
 def get_test_dir(tests_arg: str) -> str:
@@ -128,7 +90,7 @@ def main():
     
     parser.add_argument('--library',
                        default='our',
-                       choices=sorted(available_adapter_specs().keys()),
+                       choices=adapter_choices(),
                        help='Библиотека для тестирования')
     
     parser.add_argument('--tests',
@@ -166,10 +128,10 @@ def main():
     print("=" * 60)
     print(f"Библиотека: {args.library}")
     print("Варианты адаптеров:")
-    for key, info in available_adapter_specs().items():
-        status = adapter_status(info)
+    for info in list_adapter_options():
+        status = info["status"]
         marker = "✅" if status == "available" else "⚠️"
-        print(f"  {marker} {key}: {info['title']} [{status}]")
+        print(f"  {marker} {info['key']}: {info['title']} [{status}]")
     selected_profilers = args.profiling
     profiling_mode = "off" if not selected_profilers else "full" if set(selected_profilers) == available_profilers else "custom"
     print(f"Профилирование: {profiling_mode}")
