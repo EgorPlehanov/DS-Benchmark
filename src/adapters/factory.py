@@ -5,15 +5,18 @@ from typing import Dict, List, Type
 from .base_adapter import BaseDempsterShaferAdapter
 from .our_adapter import OurImplementationAdapter
 from .pydempster_adapter import PyDempsterShaferAdapter
+from .pyds_adapter import PyDSAdapter
 
 
 ADAPTER_REGISTRY: Dict[str, Type[BaseDempsterShaferAdapter]] = {
     "our": OurImplementationAdapter,
+    "pyds": PyDSAdapter,
     "py_dempster_shafer": PyDempsterShaferAdapter,
 }
 
 ALIASES: Dict[str, str] = {
     "ourimplementation": "our",
+    "pyds": "pyds",
     "pydempster": "py_dempster_shafer",
     "pydempstershafer": "py_dempster_shafer",
 }

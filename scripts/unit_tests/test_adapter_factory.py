@@ -13,6 +13,7 @@ from src.adapters.our_adapter import OurImplementationAdapter
 def main() -> int:
     adapters = list_adapters()
     assert 'our' in adapters
+    assert 'pyds' in adapters
     assert 'py_dempster_shafer' in adapters
 
     our = create_adapter('our')

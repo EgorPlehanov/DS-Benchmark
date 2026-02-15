@@ -46,7 +46,7 @@ class ArtifactManager:
         """
         Args:
             base_dir: Базовая директория (results/profiling)
-            adapter_name: Имя адаптера/библиотеки (our, py_dempster_shafer, ds)
+            adapter_name: Имя адаптера/библиотеки (our, pyds, py_dempster_shafer, ds)
             run_id: ID запуска (обычно timestamp)
             overwrite: Перезаписывать ли существующую директорию
         """
