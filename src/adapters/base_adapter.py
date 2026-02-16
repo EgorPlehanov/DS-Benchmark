@@ -19,6 +19,12 @@ class BaseDempsterShaferAdapter(ABC):
     
     # ==================== ИНИЦИАЛИЗАЦИЯ И ЗАГРУЗКА ====================
 
+    @property
+    def benchmark_name(self) -> str:
+        """Каноническое имя адаптера для CLI/папок результатов."""
+        return self.__class__.__name__.replace("Adapter", "").lower()
+
+
     @abstractmethod
     def _ensure_backend(self) -> None:
         """Проверяет доступность backend-зависимостей адаптера."""

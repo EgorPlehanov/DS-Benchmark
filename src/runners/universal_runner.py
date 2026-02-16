@@ -38,7 +38,7 @@ class UniversalBenchmarkRunner:
             results_dir: Директория для сохранения результатов
         """
         self.adapter = adapter
-        self.adapter_name = adapter.__class__.__name__.replace('Adapter', '').lower()
+        self.adapter_name = adapter.benchmark_name
         self.results_dir = results_dir
         self.results = []
         

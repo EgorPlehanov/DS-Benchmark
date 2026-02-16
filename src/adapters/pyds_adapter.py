@@ -14,6 +14,10 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
       помечаются как NotImplementedError для честного сравнения.
     """
 
+    @property
+    def benchmark_name(self) -> str:
+        return "pyds"
+
     def __init__(self):
         self._MassFunction = None
         self._ensure_backend()

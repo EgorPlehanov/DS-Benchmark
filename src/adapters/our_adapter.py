@@ -17,6 +17,10 @@ class OurImplementationAdapter(BaseDempsterShaferAdapter):
     Не хранит состояние между вызовами.
     """
     
+    @property
+    def benchmark_name(self) -> str:
+        return "our"
+
     def __init__(self):
         """Инициализация адаптера (без состояния)."""
         self._ensure_backend()
