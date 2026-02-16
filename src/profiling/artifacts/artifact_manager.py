@@ -109,18 +109,11 @@ class ArtifactManager:
         session_info = {
             "session_id": self.run_id,
             "created_at": datetime.now().isoformat(),
-            "adapter": self.adapter_name,
-            "base_dir": str(self.base_dir.absolute()),
-            "library_dir": str((self.base_dir / self.adapter_name).absolute()),
             "run_dir": str(self.run_dir.absolute()),
             "platform": os.name,
             "system": platform.system(),
-            "platform_release": platform.release(),
-            "platform_version": platform.version(),
-            "machine": platform.machine(),
-            "processor": platform.processor(),
             "python_version": platform.python_version(),
-            "artifact_manager_version": "1.2.0",
+            "artifact_manager_version": "1.3.0",
         }
 
         self.save_json("session_info.json", session_info, root_dir=True)

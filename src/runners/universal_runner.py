@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..adapters.base_adapter import BaseDempsterShaferAdapter
-from ..profiling.artifacts import ArtifactManager, collect_basic_metadata
+from ..profiling.artifacts import ArtifactManager
 
 
 class UniversalBenchmarkRunner:
@@ -51,10 +51,6 @@ class UniversalBenchmarkRunner:
         )
         self.run_dir = str(self.artifact_manager.run_dir)
 
-        # Сохраняем базовые метаданные запуска
-        self.artifact_manager.update_metadata({
-            "environment": collect_basic_metadata(),
-        })
 
         print(f"🚀 Инициализирован раннер для {self.adapter_name}")
         print(f"📁 Результаты будут сохранены в: {self.run_dir}")
