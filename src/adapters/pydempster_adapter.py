@@ -16,6 +16,7 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
 
     def __init__(self):
         self._MassFunction = None
+        self._ensure_backend()
 
     def _ensure_backend(self):
         if self._MassFunction is not None:

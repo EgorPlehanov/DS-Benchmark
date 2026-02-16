@@ -148,8 +148,6 @@ def main():
         # Создаем адаптер
         adapter = create_adapter(args.library)
 
-        # Проверяем backend-зависимости адаптера один раз перед запуском тестов
-        adapter._ensure_backend()
         
         # Создаем раннер с профилированием
         runner = ProfilingBenchmarkRunner(

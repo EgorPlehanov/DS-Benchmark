@@ -19,6 +19,7 @@ class DstzAdapter(BaseDempsterShaferAdapter):
         self._pl = None
         self._ds_rule = None
         self._shafer_discounting = None
+        self._ensure_backend()
 
     def _ensure_backend(self) -> None:
         if self._Evidence is not None:

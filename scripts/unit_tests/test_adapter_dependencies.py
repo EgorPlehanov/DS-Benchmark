@@ -13,8 +13,8 @@ def main() -> int:
     unavailable = []
 
     for adapter_name in list_adapters():
-        adapter = create_adapter(adapter_name)
         try:
+            adapter = create_adapter(adapter_name)
             adapter._ensure_backend()
             print(f"✅ {adapter_name}: backend доступен")
         except ImportError as exc:

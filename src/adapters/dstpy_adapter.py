@@ -16,6 +16,7 @@ class DstPyAdapter(BaseDempsterShaferAdapter):
         self._MassFunction = None
         self._combine_yager = None
         self._discount = None
+        self._ensure_backend()
 
     def _ensure_backend(self) -> None:
         if self._MassFunction is not None:

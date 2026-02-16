@@ -19,7 +19,7 @@ class OurImplementationAdapter(BaseDempsterShaferAdapter):
     
     def __init__(self):
         """Инициализация адаптера (без состояния)."""
-        pass
+        self._ensure_backend()
 
     def _ensure_backend(self) -> None:
         """Проверяет доступность нашей backend-реализации."""
