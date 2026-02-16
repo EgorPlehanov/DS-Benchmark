@@ -3,19 +3,21 @@
 from typing import Dict, List, Type
 
 from .base_adapter import BaseDempsterShaferAdapter
+from .dstpy_adapter import DstPyAdapter
+from .dstz_adapter import DstzAdapter
 from .our_adapter import OurImplementationAdapter
 from .pydempster_adapter import PyDempsterShaferAdapter
 
 
 ADAPTER_REGISTRY: Dict[str, Type[BaseDempsterShaferAdapter]] = {
     "our": OurImplementationAdapter,
+    "dst_py": DstPyAdapter,
+    "dstz": DstzAdapter,
     "py_dempster_shafer": PyDempsterShaferAdapter,
 }
 
 ALIASES: Dict[str, str] = {
     "ourimplementation": "our",
-    "pydempster": "py_dempster_shafer",
-    "pydempstershafer": "py_dempster_shafer",
 }
 
 
