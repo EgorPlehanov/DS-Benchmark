@@ -18,6 +18,11 @@ class BaseDempsterShaferAdapter(ABC):
     """
     
     # ==================== ИНИЦИАЛИЗАЦИЯ И ЗАГРУЗКА ====================
+
+    @abstractmethod
+    def _ensure_backend(self) -> None:
+        """Проверяет доступность backend-зависимостей адаптера."""
+        pass
     
     @abstractmethod
     def load_from_dass(self, dass_data: Dict[str, Any]) -> Any:

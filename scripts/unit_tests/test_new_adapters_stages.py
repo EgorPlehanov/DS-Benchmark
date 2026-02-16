@@ -20,6 +20,7 @@ DASS_SAMPLE = {
 
 
 def validate_adapter(adapter) -> None:
+    adapter._ensure_backend()
     loaded = adapter.load_from_dass(DASS_SAMPLE)
 
     assert adapter.get_frame_of_discernment(loaded) == ["A", "B"]

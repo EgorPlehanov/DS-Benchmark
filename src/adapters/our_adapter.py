@@ -20,6 +20,11 @@ class OurImplementationAdapter(BaseDempsterShaferAdapter):
     def __init__(self):
         """Инициализация адаптера (без состояния)."""
         pass
+
+    def _ensure_backend(self) -> None:
+        """Проверяет доступность нашей backend-реализации."""
+        if DempsterShafer is None:  # pragma: no cover
+            raise ImportError("Не удалось импортировать внутреннюю реализацию DempsterShafer.")
     
     def load_from_dass(self, dass_data: Dict[str, Any]) -> Dict[str, Any]:
         """

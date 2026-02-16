@@ -32,7 +32,6 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
         self._MassFunction = MassFunction
 
     def load_from_dass(self, dass_data: Dict[str, Any]) -> Dict[str, Any]:
-        self._ensure_backend()
 
         frame_elements = dass_data["frame_of_discernment"]
         frame = set(frame_elements)
@@ -58,7 +57,6 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
         return float(bpa.pl(self._event_to_key(event)))
 
     def combine_sources_dempster(self, data: Any) -> Dict[str, float]:
-        self._ensure_backend()
 
         bpas = [self._to_mass_function(bpa) for bpa in data.get("bpas", [])]
         if not bpas:
@@ -83,7 +81,6 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
         )
 
     def _extract_bpa(self, data: Any):
-        self._ensure_backend()
 
         if isinstance(data, dict) and "bpa" in data:
             return self._to_mass_function(data["bpa"])
@@ -115,7 +112,6 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
         return self._format_plain_bpa(self._to_plain_dict(bpa))
 
     def _to_plain_dict(self, bpa) -> Dict[frozenset, float]:
-        self._ensure_backend()
 
         if isinstance(bpa, dict):
             if not bpa:
@@ -131,7 +127,6 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
         return {frozenset(k): float(v) for k, v in dict(bpa).items()}
 
     def _to_mass_function(self, bpa):
-        self._ensure_backend()
         if isinstance(bpa, self._MassFunction):
             return bpa
         return self._MassFunction(self._to_plain_dict(bpa))

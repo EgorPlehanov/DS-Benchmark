@@ -49,7 +49,6 @@ class DstzAdapter(BaseDempsterShaferAdapter):
         self._shafer_discounting = shafer_discounting
 
     def load_from_dass(self, dass_data: Dict[str, Any]) -> Dict[str, Any]:
-        self._ensure_backend()
 
         frame_elements = dass_data["frame_of_discernment"]
         bpas = [self._to_evidence(source["bba"]) for source in dass_data["bba_sources"]]
@@ -63,13 +62,11 @@ class DstzAdapter(BaseDempsterShaferAdapter):
         return len(data.get("bpas", [])) if isinstance(data, dict) else 0
 
     def calculate_belief(self, data: Any, event: Union[str, List[str]]) -> float:
-        self._ensure_backend()
         bpa = self._extract_bpa(data)
         event_element = self._Element(self._event_to_set(event))
         return float(self._bel(event_element, bpa))
 
     def calculate_plausibility(self, data: Any, event: Union[str, List[str]]) -> float:
-        self._ensure_backend()
         bpa = self._extract_bpa(data)
         event_element = self._Element(self._event_to_set(event))
         return float(self._pl(event_element, bpa))
@@ -101,7 +98,6 @@ class DstzAdapter(BaseDempsterShaferAdapter):
         return self._format_bpa(result)
 
     def _extract_bpa(self, data: Any):
-        self._ensure_backend()
 
         if isinstance(data, dict) and "bpa" in data:
             return self._to_evidence(data["bpa"])
@@ -110,7 +106,6 @@ class DstzAdapter(BaseDempsterShaferAdapter):
         return self._Evidence()
 
     def _to_evidence(self, bpa: Any):
-        self._ensure_backend()
 
         if isinstance(bpa, self._Evidence):
             return bpa
