@@ -6,7 +6,13 @@ from .base_adapter import BaseDempsterShaferAdapter
 
 
 class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
-    """Адаптер внешней реализации py_dempster_shafer."""
+    """Адаптер внешней реализации py_dempster_shafer.
+
+    Примечание:
+    - Bel/Pl и правило Демпстера делегируются backend `MassFunction`.
+    - Дисконтирование и правило Ягера реализованы на уровне адаптера,
+      так как в pyds отсутствуют готовые методы discount/yager.
+    """
 
     def __init__(self):
         self._MassFunction = None
