@@ -33,11 +33,7 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
 
         bpas = []
         for source in dass_data["bba_sources"]:
-            mass = {}
-            for subset_str, value in source["bba"].items():
-                subset = self._parse_subset_str(subset_str)
-                mass[frozenset(subset)] = value
-            bpas.append(self._MassFunction(mass))
+            bpas.append(self._to_mass_function(source["bba"]))
 
         return {"frame": frame, "frame_elements": frame_elements, "bpas": bpas}
 
@@ -48,19 +44,17 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
         return len(data.get("bpas", [])) if isinstance(data, dict) else 0
 
     def calculate_belief(self, data: Any, event: Union[str, List[str]]) -> float:
-        self._ensure_backend()
         bpa = self._extract_bpa(data)
         return float(bpa.bel(self._event_to_key(event)))
 
     def calculate_plausibility(self, data: Any, event: Union[str, List[str]]) -> float:
-        self._ensure_backend()
         bpa = self._extract_bpa(data)
         return float(bpa.pl(self._event_to_key(event)))
 
     def combine_sources_dempster(self, data: Any) -> Dict[str, float]:
         self._ensure_backend()
 
-        bpas = data.get("bpas", [])
+        bpas = [self._to_mass_function(bpa) for bpa in data.get("bpas", [])]
         if not bpas:
             return {}
 
@@ -71,31 +65,31 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
         return self._format_bpa(result)
 
     def apply_discounting(self, data: Any, alpha: float) -> List[Dict[str, float]]:
-        self._ensure_backend()
-
         discounted = []
-        for bpa in data.get("bpas", []):
-            discounted.append(self._format_bpa(bpa.discount(alpha)))
+        for bpa_raw in data.get("bpas", []):
+            bpa_dict = self._to_plain_dict(self._to_mass_function(bpa_raw))
+            discounted_bpa = self._discount_plain(bpa_dict, alpha, data.get("frame", set()))
+            discounted.append(self._format_plain_bpa(discounted_bpa))
         return discounted
 
     def combine_sources_yager(self, data: Any) -> Dict[str, float]:
-        self._ensure_backend()
-
-        bpas = data.get("bpas", [])
+        bpas = [self._to_plain_dict(self._to_mass_function(bpa)) for bpa in data.get("bpas", [])]
         if not bpas:
             return {}
 
-        result = self._to_plain_dict(bpas[0])
+        result = bpas[0]
         for bpa in bpas[1:]:
-            result = self._yager_two(result, self._to_plain_dict(bpa), data["frame"])
+            result = self._yager_two(result, bpa, data["frame"])
 
         return self._format_plain_bpa(result)
 
     def _extract_bpa(self, data: Any):
+        self._ensure_backend()
+
         if isinstance(data, dict) and "bpa" in data:
-            return data["bpa"]
+            return self._to_mass_function(data["bpa"])
         if isinstance(data, dict) and data.get("bpas"):
-            return data["bpas"][0]
+            return self._to_mass_function(data["bpas"][0])
         return self._MassFunction({})
 
     def _event_to_key(self, event: Union[str, List[str]]) -> frozenset:
@@ -119,17 +113,50 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
         return "{" + ",".join(sorted(subset)) + "}"
 
     def _format_bpa(self, bpa) -> Dict[str, float]:
-        formatted = {}
-        for key, mass in dict(bpa).items():
-            subset = frozenset(key)
-            formatted[self._format_subset(set(subset))] = round(float(mass), 10)
-        return formatted
+        return self._format_plain_bpa(self._to_plain_dict(bpa))
 
     def _to_plain_dict(self, bpa) -> Dict[frozenset, float]:
+        self._ensure_backend()
+
+        if isinstance(bpa, dict):
+            if not bpa:
+                return {}
+            first_key = next(iter(bpa.keys()))
+            if isinstance(first_key, str):
+                return {
+                    self._parse_subset_str(subset_str): float(value)
+                    for subset_str, value in bpa.items()
+                }
+            return {frozenset(k): float(v) for k, v in bpa.items()}
+
         return {frozenset(k): float(v) for k, v in dict(bpa).items()}
+
+    def _to_mass_function(self, bpa):
+        self._ensure_backend()
+        if isinstance(bpa, self._MassFunction):
+            return bpa
+        return self._MassFunction(self._to_plain_dict(bpa))
 
     def _format_plain_bpa(self, bpa: Dict[frozenset, float]) -> Dict[str, float]:
         return {self._format_subset(set(k)): round(float(v), 10) for k, v in bpa.items()}
+
+    def _discount_plain(
+        self,
+        bpa: Dict[frozenset, float],
+        alpha: float,
+        frame: Set[str],
+    ) -> Dict[frozenset, float]:
+        omega = frozenset(frame)
+        discounted: Dict[frozenset, float] = {}
+
+        for subset, mass in bpa.items():
+            if subset == omega:
+                continue
+            discounted[subset] = (1.0 - alpha) * mass
+
+        omega_mass = bpa.get(omega, 0.0)
+        discounted[omega] = (1.0 - alpha) * omega_mass + alpha
+        return discounted
 
     def _yager_two(
         self,
