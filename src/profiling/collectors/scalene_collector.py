@@ -235,7 +235,10 @@ class ScaleneCollector:
 
 
             def load_adapter(adapter_name: str):
-                return create_adapter(adapter_name)
+                adapter = create_adapter(adapter_name)
+                # Проверяем backend-зависимости адаптера один раз перед запуском тестов
+                adapter._ensure_backend()
+                return adapter
 
 
             def run_step1(runner, data) -> None:
