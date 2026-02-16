@@ -10,8 +10,8 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
 
     Примечание:
     - Bel/Pl и правило Демпстера делегируются backend `MassFunction`.
-    - Дисконтирование и правило Ягера реализованы на уровне адаптера,
-      так как в pyds отсутствуют готовые методы discount/yager.
+    - Дисконтирование и правило Ягера в этой библиотеке отсутствуют и
+      помечаются как NotImplementedError для честного сравнения.
     """
 
     def __init__(self):
@@ -71,23 +71,16 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
         return self._format_bpa(result)
 
     def apply_discounting(self, data: Any, alpha: float) -> List[Dict[str, float]]:
-        discounted = []
-        for bpa_raw in data.get("bpas", []):
-            bpa_dict = self._to_plain_dict(self._to_mass_function(bpa_raw))
-            discounted_bpa = self._discount_plain(bpa_dict, alpha, data.get("frame", set()))
-            discounted.append(self._format_plain_bpa(discounted_bpa))
-        return discounted
+        raise NotImplementedError(
+            "В py_dempster_shafer/pyds отсутствует встроенный метод discounting. "
+            "Для честного сравнения адаптер не реализует дисконтирование самостоятельно."
+        )
 
     def combine_sources_yager(self, data: Any) -> Dict[str, float]:
-        bpas = [self._to_plain_dict(self._to_mass_function(bpa)) for bpa in data.get("bpas", [])]
-        if not bpas:
-            return {}
-
-        result = bpas[0]
-        for bpa in bpas[1:]:
-            result = self._yager_two(result, bpa, data["frame"])
-
-        return self._format_plain_bpa(result)
+        raise NotImplementedError(
+            "В py_dempster_shafer/pyds отсутствует встроенное правило Ягера. "
+            "Для честного сравнения адаптер не реализует его самостоятельно."
+        )
 
     def _extract_bpa(self, data: Any):
         self._ensure_backend()
@@ -146,42 +139,3 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
     def _format_plain_bpa(self, bpa: Dict[frozenset, float]) -> Dict[str, float]:
         return {self._format_subset(set(k)): round(float(v), 10) for k, v in bpa.items()}
 
-    def _discount_plain(
-        self,
-        bpa: Dict[frozenset, float],
-        alpha: float,
-        frame: Set[str],
-    ) -> Dict[frozenset, float]:
-        omega = frozenset(frame)
-        discounted: Dict[frozenset, float] = {}
-
-        for subset, mass in bpa.items():
-            if subset == omega:
-                continue
-            discounted[subset] = (1.0 - alpha) * mass
-
-        omega_mass = bpa.get(omega, 0.0)
-        discounted[omega] = (1.0 - alpha) * omega_mass + alpha
-        return discounted
-
-    def _yager_two(
-        self,
-        bpa1: Dict[frozenset, float],
-        bpa2: Dict[frozenset, float],
-        frame: Set[str],
-    ) -> Dict[frozenset, float]:
-        omega = frozenset(frame)
-        result: Dict[frozenset, float] = {}
-        conflict = 0.0
-
-        for subset_a, mass_a in bpa1.items():
-            for subset_b, mass_b in bpa2.items():
-                intersection = subset_a & subset_b
-                value = mass_a * mass_b
-                if intersection:
-                    result[intersection] = result.get(intersection, 0.0) + value
-                else:
-                    conflict += value
-
-        result[omega] = result.get(omega, 0.0) + conflict
-        return result
