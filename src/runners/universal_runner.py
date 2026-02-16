@@ -772,6 +772,20 @@ class UniversalBenchmarkRunner:
                 print(f"   ❌ Ошибка при выполнении теста {test_name}: {e}")
                 failed_tests += 1
                 failed_test_names.append(test_name)
+
+                failed_test_result = {
+                    "metadata": {
+                        "test_name": test_name,
+                        "adapter": self.adapter_name,
+                        "timestamp": datetime.now().isoformat(),
+                        "status": "failed_to_start"
+                    },
+                    "iterations": [],
+                    "aggregated": {},
+                    "error": str(e)
+                }
+                self._save_test_results(failed_test_result, test_name)
+                self.results.append(failed_test_result)
         
         # ✅ ИСПРАВЛЕННАЯ СТАТИСТИКА
         print(f"\n{'='*60}")

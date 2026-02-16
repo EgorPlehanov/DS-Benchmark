@@ -221,6 +221,7 @@ class ScaleneCollector:
             sys.path.insert(0, str(project_root))
 
             from src.runners.universal_runner import UniversalBenchmarkRunner
+            from src.adapters.factory import create_adapter
 
 
             def parse_args():
@@ -234,10 +235,7 @@ class ScaleneCollector:
 
 
             def load_adapter(adapter_name: str):
-                if adapter_name in {"our", "ourimplementation"}:
-                    from src.adapters.our_adapter import OurImplementationAdapter
-                    return OurImplementationAdapter()
-                raise ValueError(f"Unsupported adapter: {adapter_name}")
+                return create_adapter(adapter_name)
 
 
             def run_step1(runner, data) -> None:
