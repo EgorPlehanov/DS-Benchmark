@@ -147,6 +147,7 @@ def main():
         
         # Создаем адаптер
         adapter = create_adapter(args.library)
+
         
         # Создаем раннер с профилированием
         runner = ProfilingBenchmarkRunner(

@@ -1,0 +1,243 @@
+# Dempster-Shafer Theory Python Package
+
+A comprehensive Python package for Dempster-Shafer theory with advanced belief function combination rules and contextual discounting methods.
+
+## Overview
+
+This package provides a complete implementation of Dempster-Shafer theory, including:
+
+- Core functionality (mass functions, belief, plausibility)
+- Multiple combination rules for belief functions
+- Advanced contextual discounting methods
+- Visualization tools
+- Comprehensive examples
+
+## Project Structure
+
+The package follows the standard Python packaging structure:
+
+```
+dempster_shafer_project/
+├── src/
+│   └── dempster_shafer/       # Main package directory
+│       ├── core/              # Core functionality
+│       │   ├── frame.py       # Frame of discernment
+│       │   ├── mass_function.py # Mass function implementation
+│       │   └── utils.py       # Utility functions
+│       ├── combination/       # Combination rules
+│       │   ├── basic.py       # Basic combination rules
+│       │   ├── advanced.py    # Advanced combination rules
+│       │   ├── pcr.py         # PCR5 and PCR6 rules
+│       │   └── advanced_rules.py # Additional advanced rules
+│       ├── discounting/       # Discounting methods
+│       │   ├── classical.py   # Classical discounting
+│       │   ├── contextual.py  # Basic contextual discounting
+│       │   └── contextual_advanced.py # Advanced contextual discounting
+│       ├── visualization/     # Visualization tools
+│       │   └── plots.py       # Plotting functions
+│       └── examples/          # Example scripts
+│           ├── basic_usage.py # Basic usage examples
+│           ├── real_world.py  # Real-world applications
+│           └── visualization.py # Visualization examples
+├── tests/                     # Test directory
+│   ├── test_core.py           # Tests for core functionality
+│   ├── test_combination.py    # Tests for combination rules
+│   ├── test_discounting.py    # Tests for discounting methods
+│   └── test_advanced_features.py # Tests for advanced features
+├── pyproject.toml             # Project metadata
+├── setup.py                   # Package installation script
+├── README.md                  # This file
+└── CHANGELOG.md               # Record of changes
+```
+
+## Installation
+
+You can install the package directly from the source directory:
+
+```bash
+pip install -e /path/to/dempster_shafer_project
+```
+
+Or install from a specific release:
+
+```bash
+pip install dempster_shafer
+```
+
+## Usage Examples
+
+### Basic Usage
+
+```python
+from dempster_shafer.core import MassFunction
+
+# Create a frame of discernment
+frame = frozenset(['a', 'b', 'c'])
+
+# Create a mass function
+m1 = MassFunction({
+    ('a',): 0.2,
+    ('b',): 0.3,
+    ('a', 'b'): 0.1,
+    ('a', 'b', 'c'): 0.4
+}, frame)
+
+# Calculate belief and plausibility
+belief_a = m1.belief(('a',))
+plausibility_a = m1.plausibility(('a',))
+
+print(f"Belief in 'a': {belief_a}")
+print(f"Plausibility of 'a': {plausibility_a}")
+
+# Create another mass function
+m2 = MassFunction({
+    ('a',): 0.1,
+    ('c',): 0.2,
+    ('a', 'c'): 0.3,
+    ('a', 'b', 'c'): 0.4
+}, frame)
+
+# Combine using Dempster's rule
+m_combined = m1.combine_conjunctive(m2, normalization=True)
+print("Combined mass function:")
+print(m_combined)
+```
+
+### Advanced Combination Rules
+
+```python
+from dempster_shafer.core import MassFunction
+from dempster_shafer.combination import (
+    cautious_conjunctive_rule,
+    bold_disjunctive_rule,
+    canonical_conjunctive_decomposition
+)
+
+# Create mass functions
+frame = frozenset(['a', 'b', 'c'])
+m1 = MassFunction({('a',): 0.2, ('b',): 0.3, ('a', 'b'): 0.1, ('a', 'b', 'c'): 0.4}, frame)
+m2 = MassFunction({('a',): 0.1, ('c',): 0.2, ('a', 'c'): 0.3, ('a', 'b', 'c'): 0.4}, frame)
+
+# Combine using cautious conjunctive rule (for non-distinct sources)
+m_cautious = cautious_conjunctive_rule(m1, m2)
+print("Cautious combination:")
+print(m_cautious)
+
+# Combine using bold disjunctive rule
+m_bold = bold_disjunctive_rule(m1, m2)
+print("Bold disjunctive combination:")
+print(m_bold)
+
+# Compute canonical conjunctive decomposition
+weights = canonical_conjunctive_decomposition(m1)
+print("Canonical decomposition weights:")
+for focal_set, weight in weights.items():
+    print(f"w({focal_set}) = {weight:.4f}")
+```
+
+### Contextual Discounting
+
+```python
+from dempster_shafer.core import MassFunction
+from dempster_shafer.discounting import (
+    discount_classical,
+    discount_contextual,
+    contextual_discount,
+    theta_contextual_discount
+)
+
+# Create a mass function
+frame = frozenset(['a', 'b', 'c'])
+m = MassFunction({('a',): 0.2, ('b',): 0.3, ('a', 'b'): 0.1, ('a', 'b', 'c'): 0.4}, frame)
+
+# Apply classical discounting
+m_classical = discount_classical(m, 0.3)
+print("Classically discounted:")
+print(m_classical)
+
+# Apply contextual discounting with element-specific alphas
+alphas = {'a': 0.2, 'b': 0.3, 'c': 0.4}
+m_contextual = contextual_discount(m, alphas)
+print("Contextually discounted:")
+print(m_contextual)
+
+# Apply Θ-contextual discounting with a partition
+theta_partition = [('a',), ('b', 'c')]
+theta_alphas = {('a',): 0.2, ('b', 'c'): 0.3}
+m_theta = theta_contextual_discount(m, theta_partition, theta_alphas)
+print("Θ-contextually discounted:")
+print(m_theta)
+```
+
+## More Examples
+
+For more detailed examples, see the `examples` directory:
+
+- `basic_usage.py`: Basic operations with mass functions
+- `real_world.py`: Real-world applications
+- `visualization.py`: Visualization examples
+- `advanced_examples.py`: Advanced combination rules and contextual discounting
+
+## Mathematical Background
+
+### Dempster-Shafer Theory
+
+Dempster-Shafer theory is a mathematical framework for reasoning with uncertainty. It generalizes Bayesian probability theory by allowing for the explicit representation of ignorance.
+
+### Mass Functions
+
+A mass function (or basic belief assignment) m assigns belief mass to subsets of the frame of discernment Ω:
+
+m: 2^Ω → [0,1]
+
+such that:
+- m(∅) = 0
+- ∑_{A⊆Ω} m(A) = 1
+
+### Belief and Plausibility
+
+For a subset A of Ω:
+- Belief: Bel(A) = ∑_{B⊆A} m(B)
+- Plausibility: Pl(A) = ∑_{B∩A≠∅} m(B) = 1 - Bel(Ā)
+
+### Combination Rules
+
+#### Dempster's Rule
+
+For two mass functions m₁ and m₂:
+
+m₁⊕m₂(A) = (1/K) ∑_{B∩C=A} m₁(B)m₂(C)
+
+where K = 1 - ∑_{B∩C=∅} m₁(B)m₂(C) is the normalization factor.
+
+#### Yager's Rule
+
+Yager's rule assigns conflicting mass to the universal set Ω:
+
+m₁⊕m₂(A) = ∑_{B∩C=A} m₁(B)m₂(C) for A ≠ ∅, A ≠ Ω
+m₁⊕m₂(Ω) = m₁(Ω)m₂(Ω) + ∑_{B∩C=∅} m₁(B)m₂(C)
+
+#### Cautious Conjunctive Rule
+
+For non-distinct sources, the cautious rule combines mass functions using their weight functions:
+
+m₁∧m₂ = ⊕_{A⊂Ω} A^min(w₁(A),w₂(A))
+
+where w₁ and w₂ are the weight functions of m₁ and m₂.
+
+### Contextual Discounting
+
+Contextual discounting extends classical discounting by considering reliability conditionally on different contexts:
+
+(α)m(A) = ∑_{B⊆A} G(A,B)m(B), ∀A ⊆ Ω
+
+where G(A,B) is the generalization matrix.
+
+## References
+
+1. Shafer, G. (1976). A Mathematical Theory of Evidence. Princeton University Press.
+2. Smets, P. (1990). The Combination of Evidence in the Transferable Belief Model. IEEE Transactions on Pattern Analysis and Machine Intelligence, 12(5), 447-458.
+3. Yager, R. R. (1987). On the Dempster-Shafer Framework and New Combination Rules. Information Sciences, 41(2), 93-137.
+4. Dubois, D., & Prade, H. (1988). Representation and Combination of Uncertainty with Belief Functions and Possibility Measures. Computational Intelligence, 4(3), 244-264.
+5. Mercier, D., Quost, B., & Denœux, T. (2005). Contextual Discounting of Belief Functions. ECSQARU 2005, LNAI 3571, pp. 552-562.
+6. Denœux, T. (2008). Conjunctive and Disjunctive Combination of Belief Functions Induced by Non-Distinct Bodies of Evidence. Artificial Intelligence, 172(2-3), 234-264.
