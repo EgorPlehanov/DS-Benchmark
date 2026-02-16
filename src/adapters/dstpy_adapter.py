@@ -1,47 +1,53 @@
-"""Адаптер для библиотеки py_dempster_shafer (API MassFunction через модуль pyds)."""
+"""Адаптер для библиотеки dst-py (пакет `dempster_shafer`)."""
 
+from __future__ import annotations
+
+import sys
+from pathlib import Path
 from typing import Any, Dict, List, Set, Union
 
 from .base_adapter import BaseDempsterShaferAdapter
 
 
-class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
-    """Адаптер внешней реализации py_dempster_shafer.
-
-    Примечание:
-    - Bel/Pl и правило Демпстера делегируются backend `MassFunction`.
-    - Дисконтирование и правило Ягера в этой библиотеке отсутствуют и
-      помечаются как NotImplementedError для честного сравнения.
-    """
+class DstPyAdapter(BaseDempsterShaferAdapter):
+    """Адаптер внешней реализации dst-py."""
 
     def __init__(self):
         self._MassFunction = None
+        self._combine_yager = None
+        self._discount = None
         self._ensure_backend()
 
-    def _ensure_backend(self):
+    def _ensure_backend(self) -> None:
         if self._MassFunction is not None:
             return
 
+        project_root = Path(__file__).resolve().parents[2]
+        vendored_src = project_root / "external" / "dst-py" / "src"
+        if str(vendored_src) not in sys.path:
+            sys.path.insert(0, str(vendored_src))
+
         try:
-            from pyds import MassFunction  # type: ignore
-        except ImportError as exc:
+            from dempster_shafer import MassFunction, combine_yager, discount  # type: ignore
+        except Exception as exc:
             raise ImportError(
-                "Для использования PyDempsterShaferAdapter установите пакет `py_dempster_shafer` "
-                "(в нем доступен модуль `pyds`)."
+                "Не удалось импортировать dst-py (`dempster_shafer`). "
+                "Убедитесь, что установлены зависимости библиотеки (в т.ч. numpy)."
             ) from exc
 
         self._MassFunction = MassFunction
+        self._combine_yager = combine_yager
+        self._discount = discount
 
     def load_from_dass(self, dass_data: Dict[str, Any]) -> Dict[str, Any]:
 
         frame_elements = dass_data["frame_of_discernment"]
-        frame = set(frame_elements)
+        bpas = [self._to_mass_function(source["bba"]) for source in dass_data["bba_sources"]]
 
-        bpas = []
-        for source in dass_data["bba_sources"]:
-            bpas.append(self._to_mass_function(source["bba"]))
-
-        return {"frame": frame, "frame_elements": frame_elements, "bpas": bpas}
+        return {
+            "frame_elements": frame_elements,
+            "bpas": bpas,
+        }
 
     def get_frame_of_discernment(self, data: Any) -> List[str]:
         return data.get("frame_elements", []) if isinstance(data, dict) else []
@@ -51,14 +57,13 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
 
     def calculate_belief(self, data: Any, event: Union[str, List[str]]) -> float:
         bpa = self._extract_bpa(data)
-        return float(bpa.bel(self._event_to_key(event)))
+        return float(bpa.belief(self._event_to_key(event)))
 
     def calculate_plausibility(self, data: Any, event: Union[str, List[str]]) -> float:
         bpa = self._extract_bpa(data)
-        return float(bpa.pl(self._event_to_key(event)))
+        return float(bpa.plausibility(self._event_to_key(event)))
 
     def combine_sources_dempster(self, data: Any) -> Dict[str, float]:
-
         bpas = [self._to_mass_function(bpa) for bpa in data.get("bpas", [])]
         if not bpas:
             return {}
@@ -70,16 +75,24 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
         return self._format_bpa(result)
 
     def apply_discounting(self, data: Any, alpha: float) -> List[Dict[str, float]]:
-        raise NotImplementedError(
-            "В py_dempster_shafer/pyds отсутствует встроенный метод discounting. "
-            "Для честного сравнения адаптер не реализует дисконтирование самостоятельно."
-        )
+
+        discounted = []
+        for bpa in data.get("bpas", []):
+            discounted_bpa = self._discount(self._to_mass_function(bpa), 1.0 - alpha)
+            discounted.append(self._format_bpa(discounted_bpa))
+        return discounted
 
     def combine_sources_yager(self, data: Any) -> Dict[str, float]:
-        raise NotImplementedError(
-            "В py_dempster_shafer/pyds отсутствует встроенное правило Ягера. "
-            "Для честного сравнения адаптер не реализует его самостоятельно."
-        )
+
+        bpas = [self._to_mass_function(bpa) for bpa in data.get("bpas", [])]
+        if not bpas:
+            return {}
+
+        result = bpas[0]
+        for bpa in bpas[1:]:
+            result = self._combine_yager(result, bpa)
+
+        return self._format_bpa(result)
 
     def _extract_bpa(self, data: Any):
 
@@ -91,47 +104,36 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
 
     def _event_to_key(self, event: Union[str, List[str]]) -> frozenset:
         if isinstance(event, str):
-            subset = self._parse_subset_str(event)
-        else:
-            subset = frozenset(event)
-        return frozenset(subset)
+            return self._parse_subset_str(event)
+        return frozenset(event)
 
     def _parse_subset_str(self, subset_str: str) -> frozenset:
-        if subset_str == "{}":
-            return frozenset()
         raw = subset_str.strip("{}")
         if not raw:
             return frozenset()
-        return frozenset(raw.split(","))
+        return frozenset(item.strip() for item in raw.split(",") if item.strip())
 
     def _format_subset(self, subset: Set[str]) -> str:
         if not subset:
             return "{}"
         return "{" + ",".join(sorted(subset)) + "}"
 
-    def _format_bpa(self, bpa) -> Dict[str, float]:
-        return self._format_plain_bpa(self._to_plain_dict(bpa))
-
-    def _to_plain_dict(self, bpa) -> Dict[frozenset, float]:
-
+    def _to_plain_dict(self, bpa: Any) -> Dict[frozenset, float]:
         if isinstance(bpa, dict):
             if not bpa:
                 return {}
             first_key = next(iter(bpa.keys()))
             if isinstance(first_key, str):
-                return {
-                    self._parse_subset_str(subset_str): float(value)
-                    for subset_str, value in bpa.items()
-                }
+                return {self._parse_subset_str(k): float(v) for k, v in bpa.items()}
             return {frozenset(k): float(v) for k, v in bpa.items()}
 
         return {frozenset(k): float(v) for k, v in dict(bpa).items()}
 
-    def _to_mass_function(self, bpa):
+    def _to_mass_function(self, bpa: Any):
+
         if isinstance(bpa, self._MassFunction):
             return bpa
         return self._MassFunction(self._to_plain_dict(bpa))
 
-    def _format_plain_bpa(self, bpa: Dict[frozenset, float]) -> Dict[str, float]:
-        return {self._format_subset(set(k)): round(float(v), 10) for k, v in bpa.items()}
-
+    def _format_bpa(self, bpa: Any) -> Dict[str, float]:
+        return {self._format_subset(set(k)): round(float(v), 10) for k, v in dict(bpa).items()}
