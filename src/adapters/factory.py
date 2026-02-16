@@ -18,9 +18,6 @@ ADAPTER_REGISTRY: Dict[str, Type[BaseDempsterShaferAdapter]] = {
 
 ALIASES: Dict[str, str] = {
     "ourimplementation": "our",
-    "pydempster": "py_dempster_shafer",
-    "pydempstershafer": "py_dempster_shafer",
-    "dstpy": "dst_py",
 }
 
 
