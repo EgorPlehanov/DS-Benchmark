@@ -101,7 +101,12 @@ def compute_percent(numerator: int, denominator: int) -> float:
     return (numerator / denominator) * 100.0
 
 
-def compare_stage(reference_stage: Any, target_stage: Any, top_n: int = 0) -> DiffStat:
+def compare_stage(
+    reference_stage: Any,
+    target_stage: Any,
+    top_n: int = 0,
+    identical_threshold: float = 0.0,
+) -> DiffStat:
     if reference_stage is None and target_stage is None:
         return DiffStat()
 
@@ -133,7 +138,7 @@ def compare_stage(reference_stage: Any, target_stage: Any, top_n: int = 0) -> Di
         for path in common
     ]
     abs_diffs = [item[3] for item in raw_diffs]
-    identical_values = sum(1 for _, _, _, diff in raw_diffs if diff == 0.0)
+    identical_values = sum(1 for _, _, _, diff in raw_diffs if diff <= identical_threshold)
     top_diffs = sorted(raw_diffs, key=lambda item: item[3], reverse=True)[:top_n] if top_n else None
 
     compared = len(common)
@@ -187,6 +192,12 @@ def main() -> int:
     parser.add_argument("--libraries", default="all", help="Список библиотек через запятую или 'all'")
     parser.add_argument("--tests", default="all", help="Список тестов через запятую или 'all'")
     parser.add_argument("--show-top-diffs", type=int, default=0, help="Показывать N наибольших расхождений по каждому шагу")
+    parser.add_argument(
+        "--identical-threshold",
+        type=float,
+        default=1e-12,
+        help="Порог абсолютной разницы для учета значения как identical (по умолчанию: 1e-12)",
+    )
     args = parser.parse_args()
 
     base_dir = Path(args.base_dir)
@@ -222,6 +233,7 @@ def main() -> int:
             "libraries": libraries,
             "tests": tests,
             "show_top_diffs": args.show_top_diffs,
+            "identical_threshold": args.identical_threshold,
         },
         "tests": {},
         "summary": {
@@ -291,7 +303,12 @@ def main() -> int:
             report["tests"][test_name]["comparisons"][lib] = {}
 
             for stage in stages:
-                stat = compare_stage(ref_results.get(stage), target_results.get(stage), top_n=args.show_top_diffs)
+                stat = compare_stage(
+                    ref_results.get(stage),
+                    target_results.get(stage),
+                    top_n=args.show_top_diffs,
+                    identical_threshold=args.identical_threshold,
+                )
                 row = (
                     f"{lib:7} | {stage:5} | {stat.compared_values:4d}/{stat.total_reference_values:<4d} | "
                     f"{stat.compared_percent:9.2f} | {stat.identical_percent:10.2f} | "
