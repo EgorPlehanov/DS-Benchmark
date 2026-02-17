@@ -57,6 +57,3 @@ pip install -r requirements.txt
 python scripts/generate_test_data.py --help
 python scripts/profile_benchmark.py --help
 ```
-
-## GitHub About (suggestion)
-Modular benchmarking toolkit for Dempster–Shafer pipelines: generators, adapters, profiling, artifact schemas, and reproducible result processing.
