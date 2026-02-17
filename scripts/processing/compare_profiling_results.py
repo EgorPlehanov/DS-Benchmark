@@ -95,6 +95,15 @@ def load_latest_result(base_dir: Path, library: str, test_name: str) -> tuple[Pa
         return result_path, json.load(f)
 
 
+def extract_computation_results(payload: dict[str, Any]) -> dict[str, Any]:
+    """Возвращает блок вычислительных результатов в новой схеме (только payload["results"])."""
+    if not isinstance(payload, dict):
+        return {}
+
+    results = payload.get("results")
+    return results if isinstance(results, dict) else {}
+
+
 def compute_percent(numerator: int, denominator: int) -> float:
     if denominator == 0:
         return 100.0
@@ -292,7 +301,7 @@ def main() -> int:
             print(src_line)
             text_lines.append(src_line)
 
-        ref_results = loaded[args.reference]["aggregated"]["results"]
+        ref_results = extract_computation_results(loaded[args.reference])
 
         print("\nСравнение с эталоном:")
         text_lines.append("\nСравнение с эталоном:")
@@ -328,7 +337,7 @@ def main() -> int:
         }
 
         for lib in compared_libraries:
-            target_results = loaded[lib]["aggregated"]["results"]
+            target_results = extract_computation_results(loaded[lib])
             report["tests"][test_name]["comparisons"][lib] = {}
 
             for stage in stages:
