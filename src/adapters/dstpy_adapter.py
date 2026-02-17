@@ -64,7 +64,8 @@ class DstPyAdapter(BaseDempsterShaferAdapter):
         return float(bpa.plausibility(self._event_to_key(event)))
 
     def combine_sources_dempster(self, data: Any) -> Dict[str, float]:
-        bpas = [self._to_mass_function(bpa) for bpa in data.get("bpas", [])]
+        frame_elements = data.get("frame_elements", []) if isinstance(data, dict) else []
+        bpas = [self._to_mass_function(bpa, frame_elements) for bpa in data.get("bpas", [])]
         if not bpas:
             return {}
 
@@ -75,16 +76,16 @@ class DstPyAdapter(BaseDempsterShaferAdapter):
         return self._format_bpa(result)
 
     def apply_discounting(self, data: Any, alpha: float) -> List[Dict[str, float]]:
-
+        frame_elements = data.get("frame_elements", []) if isinstance(data, dict) else []
         discounted = []
         for bpa in data.get("bpas", []):
-            discounted_bpa = self._discount(self._to_mass_function(bpa), 1.0 - alpha)
+            discounted_bpa = self._discount(self._to_mass_function(bpa, frame_elements), 1.0 - alpha)
             discounted.append(self._format_bpa(discounted_bpa))
         return discounted
 
     def combine_sources_yager(self, data: Any) -> Dict[str, float]:
-
-        bpas = [self._to_mass_function(bpa) for bpa in data.get("bpas", [])]
+        frame_elements = data.get("frame_elements", []) if isinstance(data, dict) else []
+        bpas = [self._to_mass_function(bpa, frame_elements) for bpa in data.get("bpas", [])]
         if not bpas:
             return {}
 
@@ -95,11 +96,11 @@ class DstPyAdapter(BaseDempsterShaferAdapter):
         return self._format_bpa(result)
 
     def _extract_bpa(self, data: Any):
-
+        frame_elements = data.get("frame_elements", []) if isinstance(data, dict) else []
         if isinstance(data, dict) and "bpa" in data:
-            return self._to_mass_function(data["bpa"])
+            return self._to_mass_function(data["bpa"], frame_elements)
         if isinstance(data, dict) and data.get("bpas"):
-            return self._to_mass_function(data["bpas"][0])
+            return self._to_mass_function(data["bpas"][0], frame_elements)
         return self._MassFunction({})
 
     def _event_to_key(self, event: Union[str, List[str]]) -> frozenset:
@@ -129,11 +130,14 @@ class DstPyAdapter(BaseDempsterShaferAdapter):
 
         return {frozenset(k): float(v) for k, v in dict(bpa).items()}
 
-    def _to_mass_function(self, bpa: Any):
+    def _to_mass_function(self, bpa: Any, frame_elements: List[str] | None = None):
 
+        frame = frame_elements if frame_elements else None
         if isinstance(bpa, self._MassFunction):
-            return bpa
-        return self._MassFunction(self._to_plain_dict(bpa))
+            if frame is None or bpa.frame is not None and bpa.frame.elements == set(frame):
+                return bpa
+            return self._MassFunction(self._to_plain_dict(bpa), frame=frame)
+        return self._MassFunction(self._to_plain_dict(bpa), frame=frame)
 
     def _format_bpa(self, bpa: Any) -> Dict[str, float]:
         return {self._format_subset(set(k)): round(float(v), 10) for k, v in dict(bpa).items()}

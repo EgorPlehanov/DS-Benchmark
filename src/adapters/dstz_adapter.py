@@ -88,15 +88,10 @@ class DstzAdapter(BaseDempsterShaferAdapter):
         return [self._format_bpa(self._shafer_discounting(bpa, reliability)) for bpa in bpas]
 
     def combine_sources_yager(self, data: Any) -> Dict[str, float]:
-        bpas = [self._to_evidence(bpa) for bpa in data.get("bpas", [])]
-        if not bpas:
-            return {}
-
-        result = bpas[0]
-        for bpa in bpas[1:]:
-            result = self._yager_combine(result, bpa)
-
-        return self._format_bpa(result)
+        raise NotImplementedError(
+            "В dstz отсутствует встроенное правило Ягера. "
+            "Для честного сравнения адаптер не реализует его самостоятельно."
+        )
 
     def _extract_bpa(self, data: Any):
 
@@ -155,34 +150,3 @@ class DstzAdapter(BaseDempsterShaferAdapter):
     def _format_bpa(self, bpa: Any) -> Dict[str, float]:
         plain = self._to_plain_dict(bpa)
         return {self._format_subset(set(k)): round(float(v), 10) for k, v in plain.items()}
-
-    def _yager_combine(self, ev1, ev2):
-        result = {}
-        conflict = 0.0
-
-        theta = self._infer_theta(ev1, ev2)
-
-        for key1, m1 in ev1.items():
-            set1 = set(key1.value)
-            for key2, m2 in ev2.items():
-                set2 = set(key2.value)
-                inter = frozenset(set1.intersection(set2))
-                value = float(m1) * float(m2)
-                if inter:
-                    result[inter] = result.get(inter, 0.0) + value
-                else:
-                    conflict += value
-
-        result[theta] = result.get(theta, 0.0) + conflict
-
-        out = self._Evidence()
-        for subset, mass in result.items():
-            out[self._Element(set(subset))] = float(mass)
-        return out
-
-    def _infer_theta(self, ev1, ev2) -> frozenset:
-        items = set()
-        for evidence in (ev1, ev2):
-            for key in evidence.keys():
-                items.update(set(key.value))
-        return frozenset(items)
