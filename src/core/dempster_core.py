@@ -59,8 +59,6 @@ class DempsterShafer:
         for s1, m1 in bpa1.items():
             for s2, m2 in bpa2.items():
                 intersection = s1 & s2
-                if not intersection:
-                    continue
                 if intersection not in combined:
                     combined[intersection] = 0.0
                 combined[intersection] += m1 * m2
@@ -112,15 +110,13 @@ class DempsterShafer:
         for s1, m1 in bpa1.items():
             for s2, m2 in bpa2.items():
                 intersection = s1 & s2
-
-                # Считаем конфликт (пустые пересечения)
-                if not intersection:
-                    conflict += m1 * m2
-                    continue
-
                 if intersection not in combined:
                     combined[intersection] = 0.0
                 combined[intersection] += m1 * m2
+                
+                # Считаем конфликт (пустые пересечения)
+                if s1.isdisjoint(s2):
+                    conflict += m1 * m2
         
         # Переносим конфликт в универсальное множество
         omega = frozenset(self.frame)
