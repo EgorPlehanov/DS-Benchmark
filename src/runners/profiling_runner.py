@@ -422,38 +422,28 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
 
 
     def _save_test_results(self, test_results: Dict[str, Any], test_name: str):
-        """Сохраняет результаты теста без профилировочных метрик в test_results JSON."""
-        def _strip_run_performance(run_data: Dict[str, Any]) -> Dict[str, Any]:
-            """Оставляет только вычислительные результаты шагов."""
+        """Сохраняет только метаданные и вычислительные результаты шагов."""
+        def _extract_computation_results(run_data: Dict[str, Any]) -> Dict[str, Any]:
+            """Оставляет только step1..step4 без служебных/профилировочных полей."""
             if not isinstance(run_data, dict):
-                return run_data
+                return {}
 
             return {
-                key: value
-                for key, value in run_data.items()
-                if key != "performance"
+                step_name: run_data.get(step_name)
+                for step_name in ("step1", "step2", "step3", "step4")
+                if step_name in run_data
             }
 
-        persisted_runs = [
-            _strip_run_performance(run)
-            for run in (test_results.get("runs") or test_results.get("iterations", []))
-        ]
-
-        aggregated = dict(test_results.get("aggregated") or {})
-        aggregated.pop("performance", None)
-        if "results" in aggregated:
-            aggregated["results"] = _strip_run_performance(aggregated["results"])
+        source_run = (test_results.get("runs") or test_results.get("iterations", [{}]))[-1]
 
         persisted_results = {
-            **test_results,
             "metadata": {
                 **test_results.get("metadata", {}),
             },
-            "runs": persisted_runs,
-            "aggregated": aggregated,
+            "results": _extract_computation_results(source_run),
         }
         persisted_results["metadata"].pop("iterations", None)
-        persisted_results.pop("iterations", None)
+        persisted_results["metadata"].pop("run_count", None)
 
         self.artifact_manager.save_test_results(persisted_results, test_name)
         self._create_short_report(test_results, test_name)
