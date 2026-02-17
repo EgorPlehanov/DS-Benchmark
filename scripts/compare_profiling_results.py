@@ -129,17 +129,12 @@ def compare_stage(reference_stage: Any, target_stage: Any, top_n: int = 0) -> Di
 
 
 def write_reports(base_dir: Path, timestamp: str, report_json: dict[str, Any], report_txt: str) -> tuple[Path, Path]:
-    """Сохраняет отчеты в processed_results/<report_type>/timestamp_<report_name>.ext."""
-    processed_root = base_dir / "processed_results"
+    """Сохраняет отчеты в processed_results/comparison_report/<timestamp>/..."""
+    report_dir = base_dir / "processed_results" / "comparison_report" / timestamp
+    report_dir.mkdir(parents=True, exist_ok=True)
 
-    json_dir = processed_root / "comparison_json"
-    txt_dir = processed_root / "comparison_table"
-
-    json_dir.mkdir(parents=True, exist_ok=True)
-    txt_dir.mkdir(parents=True, exist_ok=True)
-
-    json_path = json_dir / f"{timestamp}_comparison_report.json"
-    txt_path = txt_dir / f"{timestamp}_comparison_report.txt"
+    json_path = report_dir / "comparison_report.json"
+    txt_path = report_dir / "comparison_report.txt"
 
     json_path.write_text(json.dumps(report_json, ensure_ascii=False, indent=2), encoding="utf-8")
     txt_path.write_text(report_txt, encoding="utf-8")
