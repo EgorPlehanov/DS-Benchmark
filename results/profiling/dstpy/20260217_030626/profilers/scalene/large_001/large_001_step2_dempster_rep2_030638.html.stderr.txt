@@ -1,0 +1,25 @@
+Traceback (most recent call last):
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\venv\Lib\site-packages\scalene\scalene_profiler.py", line 1894, in profile_code
+    exec(code, the_globals, the_locals)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\results\profiling\dstpy\20260217_030626\profilers\scalene\tmp\scalene_large_001_step2_dempster_rep2_030638.py", line 82, in <module>
+    main()
+    ~~~~^^
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\results\profiling\dstpy\20260217_030626\profilers\scalene\tmp\scalene_large_001_step2_dempster_rep2_030638.py", line 76, in main
+    run_step(runner, adapter, args.step, loaded_data, args.alpha)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\results\profiling\dstpy\20260217_030626\profilers\scalene\tmp\scalene_large_001_step2_dempster_rep2_030638.py", line 53, in run_step
+    run_step2(runner, data)
+    ~~~~~~~~~^^^^^^^^^^^^^^
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\results\profiling\dstpy\20260217_030626\profilers\scalene\tmp\scalene_large_001_step2_dempster_rep2_030638.py", line 35, in run_step2
+    runner._execute_step2(data)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\src\runners\universal_runner.py", line 239, in _execute_step2
+    combined_bpa_str = self.adapter.combine_sources_dempster(loaded_data)
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\src\adapters\dstpy_adapter.py", line 73, in combine_sources_dempster
+    result = result.combine_conjunctive(bpa, normalization=True)
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\external\dst-py\src\dempster_shafer\core\mass_function.py", line 236, in combine_conjunctive
+    return combine_conjunctive(self, other, normalization=normalization)
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\external\dst-py\src\dempster_shafer\combination\basic.py", line 50, in combine_conjunctive
+    raise ValueError("Frames of discernment must be compatible")
+ValueError: Frames of discernment must be compatible
