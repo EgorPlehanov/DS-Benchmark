@@ -422,13 +422,35 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
 
 
     def _save_test_results(self, test_results: Dict[str, Any], test_name: str):
-        """Сохраняет результаты теста: во внутреннем API оставляем iterations, в файле сохраняем runs."""
+        """Сохраняет результаты теста без профилировочных метрик в test_results JSON."""
+        def _strip_run_performance(run_data: Dict[str, Any]) -> Dict[str, Any]:
+            """Оставляет только вычислительные результаты шагов."""
+            if not isinstance(run_data, dict):
+                return run_data
+
+            return {
+                key: value
+                for key, value in run_data.items()
+                if key != "performance"
+            }
+
+        persisted_runs = [
+            _strip_run_performance(run)
+            for run in (test_results.get("runs") or test_results.get("iterations", []))
+        ]
+
+        aggregated = dict(test_results.get("aggregated") or {})
+        aggregated.pop("performance", None)
+        if "results" in aggregated:
+            aggregated["results"] = _strip_run_performance(aggregated["results"])
+
         persisted_results = {
             **test_results,
             "metadata": {
                 **test_results.get("metadata", {}),
             },
-            "runs": list(test_results.get("runs") or test_results.get("iterations", [])),
+            "runs": persisted_runs,
+            "aggregated": aggregated,
         }
         persisted_results["metadata"].pop("iterations", None)
         persisted_results.pop("iterations", None)
