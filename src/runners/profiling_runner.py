@@ -356,7 +356,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             "metadata": {
                 "test_name": test_name,
                 "adapter": self.adapter_name,
-                "iterations": 1,
                 "step_repeat_count": step_repeat_count,
                 "timestamp": datetime.now().isoformat(),
                 "frame_size": len(test_data.get("frame_of_discernment", [])),
@@ -376,7 +375,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             sources_count = self.adapter.get_sources_count(loaded_data)
             alphas = [0.1] * sources_count
         
-        print("   Итерация 1/1...", end="", flush=True)
+        print("   Прогон 1/1...", end="", flush=True)
         iteration_results = self._run_single_iteration(
             loaded_data=loaded_data,
             test_data=test_data,
@@ -420,7 +419,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             },
             "results": _extract_computation_results(source_run),
         }
-        persisted_results["metadata"].pop("iterations", None)
 
         self.artifact_manager.save_test_results(persisted_results, test_name)
 
