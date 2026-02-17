@@ -96,18 +96,12 @@ def load_latest_result(base_dir: Path, library: str, test_name: str) -> tuple[Pa
 
 
 def extract_computation_results(payload: dict[str, Any]) -> dict[str, Any]:
-    """Возвращает блок вычислительных результатов независимо от версии схемы файла."""
+    """Возвращает блок вычислительных результатов в новой схеме (только payload["results"])."""
     if not isinstance(payload, dict):
         return {}
 
-    if isinstance(payload.get("results"), dict):
-        return payload["results"]
-
-    aggregated = payload.get("aggregated")
-    if isinstance(aggregated, dict) and isinstance(aggregated.get("results"), dict):
-        return aggregated["results"]
-
-    return {}
+    results = payload.get("results")
+    return results if isinstance(results, dict) else {}
 
 
 def compute_percent(numerator: int, denominator: int) -> float:
