@@ -587,7 +587,7 @@ class UniversalBenchmarkRunner:
         return "success"
 
     def _create_run_summary(self, discovered_tests: int) -> Dict[str, Any]:
-        """Создает единый сводный отчет по запуску."""
+        """Создает единый сводный отчет по запуску с учетом всех итераций/повторов."""
         step_map = {
             "step1": "step1_original",
             "step2": "step2_dempster",
@@ -614,69 +614,19 @@ class UniversalBenchmarkRunner:
             "statistics": {
                 "steps": {},
                 "total_time_ms": {"sample_count": 0, "mean": 0.0, "min": 0.0, "max": 0.0, "median": 0.0, "std": 0.0},
+                "total_time_per_repeat_ms": {"sample_count": 0, "mean": 0.0, "min": 0.0, "max": 0.0, "median": 0.0, "std": 0.0},
                 "errors": {},
             },
         }
 
-        step_samples: Dict[str, list[float]] = {step: [] for step in step_map}
+        step_total_samples: Dict[str, list[float]] = {step: [] for step in step_map}
+        step_normalized_samples: Dict[str, list[float]] = {step: [] for step in step_map}
         step_counters: Dict[str, Dict[str, int]] = {
             step: {"applicable": 0, "success": 0, "failed": 0, "full_conflict": 0, "not_supported": 0}
             for step in step_map
         }
         total_times: list[float] = []
-
-        for test_result in self.results:
-            metadata = test_result.get("metadata", {})
-            test_name = metadata.get("test_name", "unknown")
-            iterations = test_result.get("iterations", [])
-            latest_perf = iterations[-1].get("performance", {}) if iterations else {}
-
-            test_entry: Dict[str, Any] = {
-                "test_name": test_name,
-                "status": self._classify_test_status(test_result),
-                "frame_size": metadata.get("frame_size"),
-                "sources_count": metadata.get("sources_count"),
-                "input_ref": f"input/{test_name}_input.json",
-                "result_ref": f"test_results/{test_name}_results.json",
-                "steps": {},
-                "errors": [],
-            }
-
-            successful_step_times: list[float] = []
-            for step_key, step_name in step_map.items():
-                step_perf = latest_perf.get(step_key, {})
-                status = step_perf.get("status", "success")
-                supported = step_perf.get("supported", status != "not_supported")
-                time_ms = float(step_perf.get("time_ms", 0.0) or 0.0)
-
-                step_entry = {
-                    "name": step_name,
-                    "status": status,
-                    "supported": supported,
-                    "time_ms": time_ms,
-                    "memory_peak_mb": float(step_perf.get("memory_peak_mb", 0.0) or 0.0),
-                    "error_type": step_perf.get("error_type"),
-                    "error_message": step_perf.get("error") or step_perf.get("warning"),
-                }
-                test_entry["steps"][step_key] = step_entry
-
-                counters = step_counters[step_key]
-                counters[status if status in counters else "failed"] += 1
-                if status != "not_supported":
-                    counters["applicable"] += 1
-                if status == "success":
-                    step_samples[step_key].append(time_ms)
-                    successful_step_times.append(time_ms)
-                elif step_entry["error_message"]:
-                    err_key = f"{step_name}: {step_entry['error_message']}"
-                    run_summary["statistics"]["errors"].setdefault(err_key, []).append(test_name)
-                    test_entry["errors"].append({"step": step_name, "message": step_entry["error_message"]})
-
-            if len(successful_step_times) == 4:
-                total_times.append(sum(successful_step_times))
-
-            run_summary["tests"].append(test_entry)
-            run_summary["totals"][test_entry["status"]] = run_summary["totals"].get(test_entry["status"], 0) + 1
+        total_per_repeat_times: list[float] = []
 
         def _stats(values: list[float]) -> Dict[str, float]:
             if not values:
@@ -690,16 +640,102 @@ class UniversalBenchmarkRunner:
                 "std": statistics.stdev(values) if len(values) > 1 else 0.0,
             }
 
+        for test_result in self.results:
+            metadata = test_result.get("metadata", {})
+            test_name = metadata.get("test_name", "unknown")
+            iterations = test_result.get("iterations", [])
+
+            test_entry: Dict[str, Any] = {
+                "test_name": test_name,
+                "status": self._classify_test_status(test_result),
+                "frame_size": metadata.get("frame_size"),
+                "sources_count": metadata.get("sources_count"),
+                "input_ref": f"input/{test_name}_input.json",
+                "result_ref": f"test_results/{test_name}_results.json",
+                "iterations_count": len(iterations),
+                "steps": {},
+                "errors": [],
+            }
+
+            test_step_total_samples: Dict[str, list[float]] = {step: [] for step in step_map}
+            test_step_normalized_samples: Dict[str, list[float]] = {step: [] for step in step_map}
+            test_total_samples: list[float] = []
+            test_total_per_repeat_samples: list[float] = []
+
+            for iteration in iterations:
+                perf = iteration.get("performance", {})
+                successful_step_total_times: list[float] = []
+                successful_step_normalized_times: list[float] = []
+
+                for step_key, step_name in step_map.items():
+                    step_perf = perf.get(step_key, {})
+                    status = step_perf.get("status", "success")
+                    supported = step_perf.get("supported", status != "not_supported")
+                    time_total_ms = float(step_perf.get("time_ms", 0.0) or 0.0)
+                    repeat_count = int(step_perf.get("step_repeat_count", metadata.get("step_repeat_count", 1)) or 1)
+                    time_per_repeat_ms = float(
+                        step_perf.get("time_per_repeat_ms", time_total_ms / max(1, repeat_count))
+                    )
+
+                    counters = step_counters[step_key]
+                    counters[status if status in counters else "failed"] += 1
+                    if status != "not_supported":
+                        counters["applicable"] += 1
+
+                    if status == "success":
+                        step_total_samples[step_key].append(time_total_ms)
+                        step_normalized_samples[step_key].append(time_per_repeat_ms)
+                        test_step_total_samples[step_key].append(time_total_ms)
+                        test_step_normalized_samples[step_key].append(time_per_repeat_ms)
+                        successful_step_total_times.append(time_total_ms)
+                        successful_step_normalized_times.append(time_per_repeat_ms)
+                    else:
+                        error_message = step_perf.get("error") or step_perf.get("warning")
+                        if error_message:
+                            err_key = f"{step_name}: {error_message}"
+                            run_summary["statistics"]["errors"].setdefault(err_key, []).append(test_name)
+                            test_entry["errors"].append({
+                                "iteration": iteration.get("iteration") or iteration.get("run"),
+                                "step": step_name,
+                                "status": status,
+                                "message": error_message,
+                            })
+
+                if len(successful_step_total_times) == 4:
+                    test_total = sum(successful_step_total_times)
+                    test_total_per_repeat = sum(successful_step_normalized_times)
+                    total_times.append(test_total)
+                    total_per_repeat_times.append(test_total_per_repeat)
+                    test_total_samples.append(test_total)
+                    test_total_per_repeat_samples.append(test_total_per_repeat)
+
+            for step_key, step_name in step_map.items():
+                test_entry["steps"][step_key] = {
+                    "name": step_name,
+                    "samples": {
+                        "time_total_ms": _stats(test_step_total_samples[step_key]),
+                        "time_per_repeat_ms": _stats(test_step_normalized_samples[step_key]),
+                    },
+                }
+
+            test_entry["total_time_ms"] = _stats(test_total_samples)
+            test_entry["total_time_per_repeat_ms"] = _stats(test_total_per_repeat_samples)
+
+            run_summary["tests"].append(test_entry)
+            run_summary["totals"][test_entry["status"]] = run_summary["totals"].get(test_entry["status"], 0) + 1
+
         for step_key, counters in step_counters.items():
             applicable = counters["applicable"]
             success_rate = (counters["success"] / applicable * 100) if applicable else 0.0
             run_summary["statistics"]["steps"][step_key] = {
                 "counts": counters,
                 "success_rate": success_rate,
-                "time_ms": _stats(step_samples[step_key]),
+                "time_total_ms": _stats(step_total_samples[step_key]),
+                "time_per_repeat_ms": _stats(step_normalized_samples[step_key]),
             }
 
         run_summary["statistics"]["total_time_ms"] = _stats(total_times)
+        run_summary["statistics"]["total_time_per_repeat_ms"] = _stats(total_per_repeat_times)
         return run_summary
 
     def run_test_suite(self, test_dir: str,
@@ -764,6 +800,7 @@ class UniversalBenchmarkRunner:
         totals = run_summary.get("totals", {})
         step_stats = run_summary.get("statistics", {}).get("steps", {})
         total_time = run_summary.get("statistics", {}).get("total_time_ms", {})
+        total_time_per_repeat = run_summary.get("statistics", {}).get("total_time_per_repeat_ms", {})
 
         lines = [
             "=" * 90,
@@ -787,22 +824,29 @@ class UniversalBenchmarkRunner:
         for step in ("step1", "step2", "step3", "step4"):
             stat = step_stats.get(step, {})
             counts = stat.get("counts", {})
-            time_info = stat.get("time_ms", {})
+            time_total = stat.get("time_total_ms", {})
+            time_per_repeat = stat.get("time_per_repeat_ms", {})
             lines.append(
                 f"  {step}: applicable={counts.get('applicable', 0)}, success={counts.get('success', 0)}, "
                 f"failed={counts.get('failed', 0)}, full_conflict={counts.get('full_conflict', 0)}, "
                 f"not_supported={counts.get('not_supported', 0)}, success_rate={stat.get('success_rate', 0.0):.1f}%"
             )
             lines.append(
-                f"      time_ms: mean={time_info.get('mean', 0.0):.2f}, min={time_info.get('min', 0.0):.2f}, "
-                f"max={time_info.get('max', 0.0):.2f}, sample_count={time_info.get('sample_count', 0)}"
+                f"      time_total_ms: mean={time_total.get('mean', 0.0):.2f}, min={time_total.get('min', 0.0):.2f}, "
+                f"max={time_total.get('max', 0.0):.2f}, sample_count={time_total.get('sample_count', 0)}"
+            )
+            lines.append(
+                f"      time_per_repeat_ms: mean={time_per_repeat.get('mean', 0.0):.2f}, min={time_per_repeat.get('min', 0.0):.2f}, "
+                f"max={time_per_repeat.get('max', 0.0):.2f}, sample_count={time_per_repeat.get('sample_count', 0)}"
             )
 
         lines.extend([
             "",
-            "Total test time (only fully successful tests):",
-            f"  mean={total_time.get('mean', 0.0):.2f} ms, min={total_time.get('min', 0.0):.2f} ms, "
-            f"max={total_time.get('max', 0.0):.2f} ms, sample_count={total_time.get('sample_count', 0)}",
+            "Total test time (only fully successful samples):",
+            f"  total_ms: mean={total_time.get('mean', 0.0):.2f}, min={total_time.get('min', 0.0):.2f}, "
+            f"max={total_time.get('max', 0.0):.2f}, sample_count={total_time.get('sample_count', 0)}",
+            f"  per_repeat_ms: mean={total_time_per_repeat.get('mean', 0.0):.2f}, min={total_time_per_repeat.get('min', 0.0):.2f}, "
+            f"max={total_time_per_repeat.get('max', 0.0):.2f}, sample_count={total_time_per_repeat.get('sample_count', 0)}",
             "",
             "Errors:",
         ])

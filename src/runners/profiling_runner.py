@@ -192,6 +192,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                     base_metrics["scalene"] = self._prepare_profiler_payload("scalene", scalene_info)
 
             base_metrics["step_repeat_count"] = repeat_count
+            base_metrics["time_per_repeat_ms"] = execution_time / max(1, repeat_count)
             
             # ✅ ПРАВИЛЬНАЯ ОБРАБОТКА ОШИБОК
             if 'error' in profile_result.metadata:
@@ -221,6 +222,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             
             return None, {
                 "time_ms": 0.0,
+                "time_per_repeat_ms": 0.0,
                 "memory_peak_mb": 0.0,
                 "cpu_usage_percent": 0.0,
                 "status": "failed",
@@ -354,7 +356,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             "metadata": {
                 "test_name": test_name,
                 "adapter": self.adapter_name,
-                "run_count": 1,
                 "iterations": 1,
                 "step_repeat_count": step_repeat_count,
                 "timestamp": datetime.now().isoformat(),
@@ -420,7 +421,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             "results": _extract_computation_results(source_run),
         }
         persisted_results["metadata"].pop("iterations", None)
-        persisted_results["metadata"].pop("run_count", None)
 
         self.artifact_manager.save_test_results(persisted_results, test_name)
 
