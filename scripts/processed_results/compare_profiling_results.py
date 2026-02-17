@@ -101,6 +101,24 @@ def compute_percent(numerator: int, denominator: int) -> float:
     return (numerator / denominator) * 100.0
 
 
+def fmt_pct(value: float) -> str:
+    return f"{value:.2f}"
+
+
+def build_separator(widths: list[int]) -> str:
+    return "-+-".join("-" * width for width in widths)
+
+
+def format_columns(values: list[str], widths: list[int], aligns: list[str]) -> str:
+    cells: list[str] = []
+    for value, width, align in zip(values, widths, aligns):
+        if align == "right":
+            cells.append(f"{value:>{width}}")
+        else:
+            cells.append(f"{value:<{width}}")
+    return " | ".join(cells)
+
+
 def compare_stage(
     reference_stage: Any,
     target_stage: Any,
@@ -278,14 +296,25 @@ def main() -> int:
 
         print("\nСравнение с эталоном:")
         text_lines.append("\nСравнение с эталоном:")
-        table_header = (
-            "library | stage | compared/total | compared_% | identical_% | "
-            "max_abs_diff | mean_abs_diff | missing | extra"
-        )
+        table_headers = [
+            "library",
+            "stage",
+            "compared/total",
+            "compared_%",
+            "identical_%",
+            "max_abs_diff",
+            "mean_abs_diff",
+            "missing",
+            "extra",
+        ]
+        table_widths = [8, 5, 14, 10, 11, 12, 13, 7, 5]
+        table_aligns = ["left", "left", "right", "right", "right", "right", "right", "right", "right"]
+        table_header = format_columns(table_headers, table_widths, table_aligns)
+        table_sep = build_separator(table_widths)
         print(table_header)
-        print("-" * len(table_header))
+        print(table_sep)
         text_lines.append(table_header)
-        text_lines.append("-" * len(table_header))
+        text_lines.append(table_sep)
 
         report["tests"][test_name] = {
             "sources": {lib: str(path) for lib, path in used_paths.items()},
@@ -309,11 +338,20 @@ def main() -> int:
                     top_n=args.show_top_diffs,
                     identical_threshold=args.identical_threshold,
                 )
-                row = (
-                    f"{lib:7} | {stage:5} | {stat.compared_values:4d}/{stat.total_reference_values:<4d} | "
-                    f"{stat.compared_percent:9.2f} | {stat.identical_percent:10.2f} | "
-                    f"{stat.max_abs_diff:12.3e} | {stat.mean_abs_diff:13.3e} | "
-                    f"{stat.missing_paths:7d} | {stat.extra_paths:5d}"
+                row = format_columns(
+                    [
+                        lib,
+                        stage,
+                        f"{stat.compared_values}/{stat.total_reference_values}",
+                        fmt_pct(stat.compared_percent),
+                        fmt_pct(stat.identical_percent),
+                        f"{stat.max_abs_diff:.3e}",
+                        f"{stat.mean_abs_diff:.3e}",
+                        str(stat.missing_paths),
+                        str(stat.extra_paths),
+                    ],
+                    table_widths,
+                    table_aligns,
                 )
                 print(row)
                 text_lines.append(row)
@@ -341,19 +379,29 @@ def main() -> int:
 
         print("\nИтог по тесту (все этапы):")
         text_lines.append("\nИтог по тесту (все этапы):")
-        summary_header = "library | compared/total | compared_% | identical_%"
+        summary_headers = ["library", "compared/total", "compared_%", "identical_%"]
+        summary_widths = [8, 14, 10, 11]
+        summary_aligns = ["left", "right", "right", "right"]
+        summary_header = format_columns(summary_headers, summary_widths, summary_aligns)
+        summary_sep = build_separator(summary_widths)
         print(summary_header)
-        print("-" * len(summary_header))
+        print(summary_sep)
         text_lines.append(summary_header)
-        text_lines.append("-" * len(summary_header))
+        text_lines.append(summary_sep)
 
         for lib in compared_libraries:
             totals = test_totals[lib]
             compared_pct = compute_percent(totals["compared"], totals["total"])
             identical_pct = compute_percent(totals["identical"], totals["total"])
-            summary_row = (
-                f"{lib:7} | {totals['compared']:4d}/{totals['total']:<4d} | "
-                f"{compared_pct:9.2f} | {identical_pct:10.2f}"
+            summary_row = format_columns(
+                [
+                    lib,
+                    f"{totals['compared']}/{totals['total']}",
+                    fmt_pct(compared_pct),
+                    fmt_pct(identical_pct),
+                ],
+                summary_widths,
+                summary_aligns,
             )
             print(summary_row)
             text_lines.append(summary_row)
@@ -370,11 +418,15 @@ def main() -> int:
 
     print("\nПо этапам:")
     text_lines.append("\nПо этапам:")
-    stage_header = "library | stage | compared/total | compared_% | identical_%"
+    stage_headers = ["library", "stage", "compared/total", "compared_%", "identical_%"]
+    stage_widths = [8, 5, 14, 10, 11]
+    stage_aligns = ["left", "left", "right", "right", "right"]
+    stage_header = format_columns(stage_headers, stage_widths, stage_aligns)
+    stage_sep = build_separator(stage_widths)
     print(stage_header)
-    print("-" * len(stage_header))
+    print(stage_sep)
     text_lines.append(stage_header)
-    text_lines.append("-" * len(stage_header))
+    text_lines.append(stage_sep)
 
     for lib in compared_libraries:
         report["summary"]["global"]["by_stage"][lib] = {}
@@ -382,9 +434,16 @@ def main() -> int:
             totals = global_totals[lib][stage]
             compared_pct = compute_percent(totals["compared"], totals["total"])
             identical_pct = compute_percent(totals["identical"], totals["total"])
-            stage_row = (
-                f"{lib:7} | {stage:5} | {totals['compared']:4d}/{totals['total']:<4d} | "
-                f"{compared_pct:9.2f} | {identical_pct:10.2f}"
+            stage_row = format_columns(
+                [
+                    lib,
+                    stage,
+                    f"{totals['compared']}/{totals['total']}",
+                    fmt_pct(compared_pct),
+                    fmt_pct(identical_pct),
+                ],
+                stage_widths,
+                stage_aligns,
             )
             print(stage_row)
             text_lines.append(stage_row)
@@ -398,11 +457,15 @@ def main() -> int:
 
     print("\nПо библиотекам (все этапы, все тесты):")
     text_lines.append("\nПо библиотекам (все этапы, все тесты):")
-    lib_header = "library | compared/total | compared_% | identical_%"
+    lib_headers = ["library", "compared/total", "compared_%", "identical_%"]
+    lib_widths = [8, 14, 10, 11]
+    lib_aligns = ["left", "right", "right", "right"]
+    lib_header = format_columns(lib_headers, lib_widths, lib_aligns)
+    lib_sep = build_separator(lib_widths)
     print(lib_header)
-    print("-" * len(lib_header))
+    print(lib_sep)
     text_lines.append(lib_header)
-    text_lines.append("-" * len(lib_header))
+    text_lines.append(lib_sep)
 
     for lib in compared_libraries:
         total_compared = sum(global_totals[lib][stage]["compared"] for stage in stages)
@@ -410,9 +473,15 @@ def main() -> int:
         total_reference = sum(global_totals[lib][stage]["total"] for stage in stages)
         compared_pct = compute_percent(total_compared, total_reference)
         identical_pct = compute_percent(total_identical, total_reference)
-        lib_row = (
-            f"{lib:7} | {total_compared:4d}/{total_reference:<4d} | "
-            f"{compared_pct:9.2f} | {identical_pct:10.2f}"
+        lib_row = format_columns(
+            [
+                lib,
+                f"{total_compared}/{total_reference}",
+                fmt_pct(compared_pct),
+                fmt_pct(identical_pct),
+            ],
+            lib_widths,
+            lib_aligns,
         )
         print(lib_row)
         text_lines.append(lib_row)
