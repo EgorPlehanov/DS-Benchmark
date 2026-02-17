@@ -77,9 +77,24 @@ class DstPyAdapter(BaseDempsterShaferAdapter):
 
     def apply_discounting(self, data: Any, alpha: float) -> List[Dict[str, float]]:
         frame_elements = data.get("frame_elements", []) if isinstance(data, dict) else []
+        reliability = 1.0 - alpha
         discounted = []
         for bpa in data.get("bpas", []):
-            discounted_bpa = self._discount(self._to_mass_function(bpa, frame_elements), 1.0 - alpha)
+            mass_function = self._to_mass_function(bpa, frame_elements)
+            discounted_bpa = self._discount(mass_function, reliability)
+
+            # В используемой версии dst-py `discount()` не добавляет Ω,
+            # если в исходном BPA не было массы для универсума.
+            # Из-за этого сумма масс становится < 1, а последующее
+            # комбинирование может вырождаться в пустой результат.
+            if mass_function.frame is not None:
+                theta = frozenset(mass_function.frame.elements)
+            else:
+                theta = frozenset(frame_elements)
+
+            if theta and theta not in discounted_bpa:
+                discounted_bpa[theta] = reliability * mass_function.get(theta, 0.0) + (1.0 - reliability)
+
             discounted.append(self._format_bpa(discounted_bpa))
         return discounted
 

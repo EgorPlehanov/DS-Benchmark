@@ -85,7 +85,13 @@ class DstzAdapter(BaseDempsterShaferAdapter):
     def apply_discounting(self, data: Any, alpha: float) -> List[Dict[str, float]]:
         bpas = [self._to_evidence(bpa) for bpa in data.get("bpas", [])]
         reliability = 1.0 - alpha
-        return [self._format_bpa(self._shafer_discounting(bpa, reliability)) for bpa in bpas]
+        frame_elements = data.get("frame_elements", []) if isinstance(data, dict) else []
+        frame = set(frame_elements)
+
+        # В dstz `shafer_discounting` по умолчанию строит FoD из текущего источника,
+        # из-за чего в Ω попадают только элементы его фокальных множеств.
+        # Для корректного сравнения используем общий FoD теста.
+        return [self._format_bpa(self._shafer_discounting(bpa, reliability, fod=frame)) for bpa in bpas]
 
     def combine_sources_yager(self, data: Any) -> Dict[str, float]:
         raise NotImplementedError(
