@@ -16,10 +16,10 @@ Compares numerical results across profiling outputs from multiple libraries (for
 - Compares stages (`step1`..`step4`) against a reference library.
 - Computes:
   - compared values (`compared/total`),
-  - compared percentage,
-  - identical percentage (with configurable threshold),
-  - max/mean absolute difference,
-  - missing/extra paths.
+  - compared percentage (`compared_%`),
+  - identical percentage (with configurable threshold) (`identical_%`),
+  - max/mean absolute difference (`max_abs_diff` / `mean_abs_diff`),
+  - missing/extra paths (`missing` / `extra`).
 - Builds summaries:
   - per test (all stages),
   - global by stage,
@@ -61,10 +61,10 @@ python scripts/processing/compare_profiling_results.py \
 - Сравнивает этапы (`step1`..`step4`) относительно эталонной библиотеки.
 - Считает метрики:
   - количество сопоставленных значений (`compared/total`),
-  - процент сопоставления,
-  - процент идентичности (с настраиваемым порогом),
-  - максимальную/среднюю абсолютную разницу,
-  - отсутствующие/лишние пути.
+  - процент сопоставления (`compared_%`),
+  - процент идентичности (с настраиваемым порогом) (`identical_%`),
+  - максимальную/среднюю абсолютную разницу (`max_abs_diff` / `mean_abs_diff`),
+  - отсутствующие/лишние пути (`missing` / `extra`).
 - Строит сводки:
   - по каждому тесту (все этапы),
   - общий итог по этапам,
