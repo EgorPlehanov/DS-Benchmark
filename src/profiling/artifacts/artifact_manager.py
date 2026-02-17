@@ -9,6 +9,8 @@ import os
 import platform
 import re
 import shutil
+import socket
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -106,6 +108,7 @@ class ArtifactManager:
 
     def _init_session(self) -> None:
         """Инициализирует сессию - создает базовые метаданные."""
+        system_info = self._collect_system_info()
         session_info = {
             "session_id": self.run_id,
             "created_at": datetime.now().isoformat(),
@@ -113,11 +116,64 @@ class ArtifactManager:
             "platform": os.name,
             "system": platform.system(),
             "python_version": platform.python_version(),
-            "artifact_manager_version": "1.3.0",
+            "artifact_manager_version": "1.4.0",
+            "system_info": system_info,
         }
 
         self.save_json("session_info.json", session_info, root_dir=True)
         logger.info("📝 Инициализирована сессия: %s", self.run_id)
+
+    def _collect_system_info(self) -> Dict[str, Any]:
+        """Собирает расширенную информацию о системе для session_info.json."""
+        info: Dict[str, Any] = {
+            "os": {
+                "name": os.name,
+                "system": platform.system(),
+                "release": platform.release(),
+                "version": platform.version(),
+                "machine": platform.machine(),
+                "processor": platform.processor(),
+                "platform": platform.platform(),
+            },
+            "python": {
+                "version": platform.python_version(),
+                "implementation": platform.python_implementation(),
+                "compiler": platform.python_compiler(),
+                "executable": sys.executable,
+            },
+            "host": {
+                "hostname": socket.gethostname(),
+                "cpu_count": os.cpu_count(),
+            },
+        }
+
+        try:
+            import getpass
+
+            info["host"]["username"] = getpass.getuser()
+        except Exception:
+            info["host"]["username"] = "unknown"
+
+        try:
+            import psutil
+
+            virtual_memory = psutil.virtual_memory()
+            info["host"]["memory"] = {
+                "total_bytes": virtual_memory.total,
+                "available_bytes": virtual_memory.available,
+            }
+
+            cpu_freq = psutil.cpu_freq()
+            if cpu_freq is not None:
+                info["host"]["cpu_frequency_mhz"] = {
+                    "current": cpu_freq.current,
+                    "min": cpu_freq.min,
+                    "max": cpu_freq.max,
+                }
+        except Exception:
+            info["host"]["psutil"] = "not_available"
+
+        return info
 
     def get_path(self, filename: str, subdir: Optional[str] = None, root_dir: bool = False) -> Path:
         """Возвращает полный путь к файлу."""
