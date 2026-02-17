@@ -12,6 +12,7 @@
 - Пошаговый прогон и измерение производительности.
 - Агрегация результатов по итерациям.
 - Сохранение JSON-артефактов в `results/profiling/...`.
+- Формирование единой сводки запуска: `run_summary.json` и человекочитаемого `logs/final_report.txt`.
 
 ---
 
@@ -27,3 +28,4 @@ Runners orchestrate test execution and metric collection.
 - Execute benchmark steps and measure performance.
 - Aggregate iteration-level outputs.
 - Persist JSON artifacts under `results/profiling/...`.
+- Produce consolidated run reports: `run_summary.json` + `logs/final_report.txt`.

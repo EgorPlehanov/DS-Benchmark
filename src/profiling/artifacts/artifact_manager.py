@@ -94,10 +94,7 @@ class ArtifactManager:
             "input",
             "profilers",
             "test_results",
-            "metrics",
-            "visualizations",
             "logs",
-            "tmp",
         ]
 
         for subdir in subdirs:

@@ -154,7 +154,9 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             base_metrics = {
                 "time_ms": execution_time,
                 "memory_peak_mb": 0.0,
-                "cpu_usage_percent": 0.0
+                "cpu_usage_percent": 0.0,
+                "status": "success",
+                "supported": True,
             }
             
             if profile_result.results:
@@ -190,6 +192,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                     base_metrics["scalene"] = self._prepare_profiler_payload("scalene", scalene_info)
 
             base_metrics["step_repeat_count"] = repeat_count
+            base_metrics["time_per_repeat_ms"] = execution_time / max(1, repeat_count)
             
             # ✅ ПРАВИЛЬНАЯ ОБРАБОТКА ОШИБОК
             if 'error' in profile_result.metadata:
@@ -199,10 +202,15 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 # Проверяем, это полный конфликт или другая ошибка
                 if any(keyword in error_msg for keyword in 
                     ["полный конфликт", "full conflict", "k=1.0", "конфликт между источниками"]):
-                    # Это полный конфликт - НЕ ошибка, а warning
+                    base_metrics["status"] = "full_conflict"
                     base_metrics["warning"] = error_info.get('error', 'Полный конфликт между источниками')
+                elif error_info.get('error_type') == 'NotImplementedError':
+                    base_metrics["status"] = "not_supported"
+                    base_metrics["supported"] = False
+                    base_metrics["error"] = error_info.get('error', 'Not supported')
+                    base_metrics["error_type"] = 'NotImplementedError'
                 else:
-                    # Другие ошибки
+                    base_metrics["status"] = "failed"
                     base_metrics["error"] = error_info.get('error', 'Unknown error')
                     base_metrics["error_type"] = error_info.get('error_type', 'Exception')
             
@@ -214,8 +222,11 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             
             return None, {
                 "time_ms": 0.0,
+                "time_per_repeat_ms": 0.0,
                 "memory_peak_mb": 0.0,
                 "cpu_usage_percent": 0.0,
+                "status": "failed",
+                "supported": True,
                 "error": f"Ошибка профилирования: {str(e)}",
                 "error_type": type(e).__name__
             }
@@ -223,35 +234,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
     def _save_profiling_data(self, step_name: str, profile_result: CompositeProfileResult,
                            test_name: str = "", repeat_count: int = 1) -> None:
         """Сохраняет данные профилирования с привязкой к тесту"""
-        timestamp = datetime.now().strftime("%H%M%S")
-        
-        # ✅ СОЗДАЕМ ИМЯ ФАЙЛА С ИНФОРМАЦИЕЙ О ТЕСТЕ
-        if test_name:
-            filename = f"{test_name}_rep{repeat_count}_{step_name}_{timestamp}"
-        else:
-            filename = f"{step_name}_rep{repeat_count}_{timestamp}"
-        
-        # 1. Структурированный отчет
-        report_data = {
-            'step': step_name,
-            'test_name': test_name,
-            'timestamp': datetime.now().isoformat(),
-            'total_duration': profile_result.total_duration,
-            'bottlenecks': profile_result.bottlenecks,
-            'correlations': profile_result.correlations,
-            'metadata': {
-                **profile_result.metadata,
-                'step_repeat_count': repeat_count
-            }
-        }
-        
-        self.artifact_manager.save_json(
-            f"{filename}_report.json",
-            report_data,
-            subdir=f"profilers/reports/{test_name or 'unknown'}"
-        )
-        
-        # 2. Детальные данные профилировщиков
+        # Сохраняем только детальные данные профилировщиков (raw)
         for profiler_name, result in profile_result.results.items():
             profiler_data = {
                 'profiler': profiler_name,
@@ -303,8 +286,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         )
         iteration_results["step1"] = step1_results
         iteration_results["performance"]["step1"] = step1_metrics
-        self.artifact_manager.save_metrics(step1_metrics, test_name or "unknown", "step1_original", iteration_num, repeat_count=step_repeat_count)
-        
+                
         # Шаг 2
         step2_results, step2_metrics = self._measure_performance(
             self._repeat_step,
@@ -317,8 +299,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         )
         iteration_results["step2"] = step2_results
         iteration_results["performance"]["step2"] = step2_metrics
-        self.artifact_manager.save_metrics(step2_metrics, test_name or "unknown", "step2_dempster", iteration_num, repeat_count=step_repeat_count)
-        
+                
         # Шаг 3
         step3_results, step3_metrics = self._measure_performance(
             self._repeat_step,
@@ -332,8 +313,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         )
         iteration_results["step3"] = step3_results
         iteration_results["performance"]["step3"] = step3_metrics
-        self.artifact_manager.save_metrics(step3_metrics, test_name or "unknown", "step3_discount_dempster", iteration_num, repeat_count=step_repeat_count)
-        
+                
         # Шаг 4
         step4_results, step4_metrics = self._measure_performance(
             self._repeat_step,
@@ -346,8 +326,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         )
         iteration_results["step4"] = step4_results
         iteration_results["performance"]["step4"] = step4_metrics
-        self.artifact_manager.save_metrics(step4_metrics, test_name or "unknown", "step4_yager", iteration_num, repeat_count=step_repeat_count)
-        
+                
         # Общая статистика
         iteration_results["performance"]["total"] = {
             "time_total_ms": sum(
@@ -377,16 +356,12 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             "metadata": {
                 "test_name": test_name,
                 "adapter": self.adapter_name,
-                "run_count": 1,
-                "iterations": 1,
                 "step_repeat_count": step_repeat_count,
                 "timestamp": datetime.now().isoformat(),
                 "frame_size": len(test_data.get("frame_of_discernment", [])),
                 "sources_count": len(test_data.get("bba_sources", []))
             },
-            "runs": [],
-            "iterations": [],
-            "aggregated": {}
+            "iterations": []
         }
         
         loaded_data = self.adapter.load_from_dass(test_data)
@@ -398,7 +373,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             sources_count = self.adapter.get_sources_count(loaded_data)
             alphas = [0.1] * sources_count
         
-        print("   Итерация 1/1...", end="", flush=True)
         iteration_results = self._run_single_iteration(
             loaded_data=loaded_data,
             test_data=test_data,
@@ -407,14 +381,9 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             test_name=test_name,
             step_repeat_count=step_repeat_count
         )
-        test_results["runs"].append(iteration_results)
         test_results["iterations"].append(iteration_results)
         print(" ✓")
-        
-        test_results["aggregated"] = self._aggregate_iteration_results(
-            test_results["runs"]
-        )
-        
+
         self._save_test_results(test_results, test_name)
         self.results.append(test_results)
         
@@ -434,7 +403,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 if step_name in run_data
             }
 
-        source_run = (test_results.get("runs") or test_results.get("iterations", [{}]))[-1]
+        source_run = (test_results.get("iterations") or [{}])[-1]
 
         persisted_results = {
             "metadata": {
@@ -442,11 +411,8 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             },
             "results": _extract_computation_results(source_run),
         }
-        persisted_results["metadata"].pop("iterations", None)
-        persisted_results["metadata"].pop("run_count", None)
 
         self.artifact_manager.save_test_results(persisted_results, test_name)
-        self._create_short_report(test_results, test_name)
 
     def _get_scalene_input_path(self, test_name: str) -> Optional[str]:
         if not self.enable_scalene:
