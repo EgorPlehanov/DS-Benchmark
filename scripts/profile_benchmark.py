@@ -185,21 +185,14 @@ def main():
         # Выводим информацию о профилировании
         if selected_profilers:
             profiling_dir = Path(runner.profiling_dir)
-            reports_dir = profiling_dir / "reports"
-            print(f"\n📊 ДАННЫЕ ПРОФИЛИРОВАНИЯ:")
-            print(f"   Отчеты: {reports_dir}")
+            run_summary_path = Path(runner.run_dir) / "run_summary.json"
+            print("\n📊 ДАННЫЕ ПРОФИЛИРОВАНИЯ:")
             print(f"   Сырые данные профайлеров: {profiling_dir}")
-            
-            # Подсчитываем количество файлов
-            report_files = list(reports_dir.rglob("*.json"))
-            raw_files = [
-                p for p in profiling_dir.rglob("*.json")
-                if "reports" not in p.parts and "inputs" not in p.parts
-            ]
-            
-            print(f"   Сохранено отчетов: {len(report_files)}")
+            print(f"   Сводка запуска: {run_summary_path}")
+
+            raw_files = list(profiling_dir.rglob("*.json"))
             print(f"   Сохранено сырых файлов: {len(raw_files)}")
-        
+
         print(f"\n✅ ВЫПОЛНЕНИЕ ЗАВЕРШЕНО")
         print(f"📁 Результаты: {runner.run_dir}")
         
