@@ -9,7 +9,6 @@ import os
 import platform
 import re
 import shutil
-import socket
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -139,17 +138,9 @@ class ArtifactManager:
                 "executable": sys.executable,
             },
             "host": {
-                "hostname": socket.gethostname(),
                 "cpu_count": os.cpu_count(),
             },
         }
-
-        try:
-            import getpass
-
-            info["host"]["username"] = getpass.getuser()
-        except Exception:
-            info["host"]["username"] = "unknown"
 
         try:
             import psutil
