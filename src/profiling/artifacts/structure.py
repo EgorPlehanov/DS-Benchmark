@@ -73,7 +73,7 @@ def validate_artifact_structure(base_path: Path) -> List[str]:
         try:
             with open(session_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            required_session_keys = ["session_id", "created_at", "adapter", "run_dir"]
+            required_session_keys = ["session_id", "created_at", "run_dir"]
             for key in required_session_keys:
                 if key not in data:
                     problems.append(f"session_info.json не содержит {key}")

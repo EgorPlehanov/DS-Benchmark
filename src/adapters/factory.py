@@ -6,20 +6,20 @@ from .base_adapter import BaseDempsterShaferAdapter
 from .dstpy_adapter import DstPyAdapter
 from .dstz_adapter import DstzAdapter
 from .our_adapter import OurImplementationAdapter
-from .pydempster_adapter import PyDempsterShaferAdapter
+from .pyds_adapter import PyDempsterShaferAdapter
 
 
 ADAPTER_REGISTRY: Dict[str, Type[BaseDempsterShaferAdapter]] = {
     "our": OurImplementationAdapter,
     "dst_py": DstPyAdapter,
     "dstz": DstzAdapter,
-    "py_dempster_shafer": PyDempsterShaferAdapter,
+    "pyds": PyDempsterShaferAdapter,
 }
 
 ALIASES: Dict[str, str] = {
     "ourimplementation": "our",
-    "pydempstershafer": "py_dempster_shafer",
-    "pyds": "py_dempster_shafer",
+    "pydempstershafer": "pyds",
+    "py_dempster_shafer": "pyds",
     "dstpy": "dst_py",
 }
 
@@ -34,4 +34,4 @@ def create_adapter(name: str) -> BaseDempsterShaferAdapter:
 
 
 def list_adapters() -> List[str]:
-    return sorted(ADAPTER_REGISTRY.keys())
+    return sorted(set(ADAPTER_REGISTRY.keys()) | set(ALIASES.keys()))
