@@ -361,9 +361,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 "frame_size": len(test_data.get("frame_of_discernment", [])),
                 "sources_count": len(test_data.get("bba_sources", []))
             },
-            "runs": [],
-            "iterations": [],
-            "aggregated": {}
+            "iterations": []
         }
         
         loaded_data = self.adapter.load_from_dass(test_data)
@@ -375,7 +373,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             sources_count = self.adapter.get_sources_count(loaded_data)
             alphas = [0.1] * sources_count
         
-        print("   Прогон 1/1...", end="", flush=True)
         iteration_results = self._run_single_iteration(
             loaded_data=loaded_data,
             test_data=test_data,
@@ -384,14 +381,9 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             test_name=test_name,
             step_repeat_count=step_repeat_count
         )
-        test_results["runs"].append(iteration_results)
         test_results["iterations"].append(iteration_results)
         print(" ✓")
-        
-        test_results["aggregated"] = self._aggregate_iteration_results(
-            test_results["runs"]
-        )
-        
+
         self._save_test_results(test_results, test_name)
         self.results.append(test_results)
         
@@ -411,7 +403,7 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                 if step_name in run_data
             }
 
-        source_run = (test_results.get("runs") or test_results.get("iterations", [{}]))[-1]
+        source_run = (test_results.get("iterations") or [{}])[-1]
 
         persisted_results = {
             "metadata": {
