@@ -113,10 +113,7 @@ class ArtifactManager:
             "session_id": self.run_id,
             "created_at": datetime.now().isoformat(),
             "run_dir": str(self.run_dir.absolute()),
-            "platform": os.name,
-            "system": platform.system(),
-            "python_version": platform.python_version(),
-            "artifact_manager_version": "1.4.0",
+            "artifact_manager_version": "1.4.1",
             "system_info": system_info,
         }
 
