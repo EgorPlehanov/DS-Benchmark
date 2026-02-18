@@ -774,6 +774,7 @@ class UniversalBenchmarkRunner:
 
         total_tests = len(test_files)
         print(f"📄 Найдено тестов: {total_tests}")
+        print("\n📊 Прогресс выполнения:")
 
         if total_tests == 0:
             print("⚠️  Тесты не найдены — будет сформирован пустой run_summary.")

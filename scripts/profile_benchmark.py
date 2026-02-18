@@ -127,23 +127,23 @@ def main():
     
     print("🔬 Профилирование бенчмарка")
     print("=" * 60)
-    print(f"Библиотека: {args.library}")
+    print(f"📚 Библиотека: {args.library}")
     selected_profilers = args.profiling
     profiling_mode = "off" if not selected_profilers else "full" if set(selected_profilers) == available_profilers else "custom"
-    print(f"Профилирование: {profiling_mode}")
+    print(f"⚙️  Режим профилирования: {profiling_mode}")
     if selected_profilers:
-        print(f"Профайлеры: {', '.join(selected_profilers)}")
+        print(f"🧰 Профайлеры: {', '.join(selected_profilers)}")
     else:
-        print("Профайлеры: отключены")
-    print(f"Повторов каждого шага: {args.iterations}")
-    print(f"Нормализация путей: {'включена' if args.sanitize_paths else 'выключена'}")
+        print("🧰 Профайлеры: отключены")
+    print(f"🔁 Повторов каждого шага: {args.iterations}")
+    print(f"🛡️  Нормализация путей: {'включена' if args.sanitize_paths else 'выключена'}")
     
     runner = None
 
     try:
         # Получаем путь к тестам
         test_dir = get_test_dir(args.tests)
-        print(f"Тесты: {test_dir}")
+        print(f"🧪 Тесты: {test_dir}")
         
         # Создаем адаптер
         adapter = create_adapter(args.library)
@@ -175,7 +175,6 @@ def main():
         )
         
         # Запускаем тесты
-        print(f"\n🚀 Запуск тестов из: {test_dir}")
         runner.run_test_suite(
             test_dir=test_dir,
             iterations=effective_iterations,
