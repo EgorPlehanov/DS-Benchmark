@@ -66,12 +66,14 @@ class ScaleneCollector:
         profile_only_filters: List[str],
         script_args: Optional[List[str]]
     ) -> List[str]:
-        """Собирает команду запуска scalene под CLI c подкомандой run (v2.x+)."""
+        """Собирает команду запуска scalene run с валидными флагами v2.x."""
         args = [
             "scalene",
             "run",
             "-o",
             str(profile_json_path),
+            "--memory",
+            "--profile-all",
         ]
 
         if profile_only_filters:
@@ -82,6 +84,16 @@ class ScaleneCollector:
             args.extend(script_args)
 
         return args
+
+    @staticmethod
+    def _build_scalene_view_command(profile_json_path: Path) -> List[str]:
+        """Собирает команду scalene view для генерации HTML отчета без браузера."""
+        return [
+            "scalene",
+            "view",
+            "--html",
+            str(profile_json_path),
+        ]
 
     def _capture_scalene_profile_json(self, test_output_dir: Path, profile_json_path: Path) -> Optional[str]:
         """Сохраняет raw profile JSON как артефакт конкретного шага (новое и legacy имя)."""
@@ -132,7 +144,8 @@ class ScaleneCollector:
         else:
             profile_json_filename = f"{test_name}_{step_name}_iter{iteration}_{timestamp}.profile.json"
         profile_json_path = (test_output_dir / profile_json_filename).resolve()
-        info["html_path"] = None
+        html_path = profile_json_path.with_suffix('.html')
+        info["html_path"] = str(html_path)
 
         profile_only_filters = self._get_profile_only_filters()
         if profile_only_filters:
@@ -145,9 +158,10 @@ class ScaleneCollector:
             script_args=script_args,
         )
 
+        env = dict(os.environ)
+        env.setdefault("PYTHONIOENCODING", "utf-8")
+
         try:
-            env = dict(os.environ)
-            env.setdefault("PYTHONIOENCODING", "utf-8")
             completed = subprocess.run(
                 args,
                 check=True,
@@ -155,7 +169,8 @@ class ScaleneCollector:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                env=env
+                env=env,
+                cwd=str(test_output_dir),
             )
             if completed.stdout:
                 (test_output_dir / f"{profile_json_filename}.stdout.txt").write_text(
@@ -184,6 +199,39 @@ class ScaleneCollector:
             captured_profile_path = self._capture_scalene_profile_json(test_output_dir, profile_json_path)
             if captured_profile_path:
                 info["profile_json_path"] = captured_profile_path
+                view_args = self._build_scalene_view_command(Path(captured_profile_path))
+                try:
+                    view_completed = subprocess.run(
+                        view_args,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        env=env,
+                        cwd=str(test_output_dir),
+                    )
+                    if view_completed.stdout:
+                        (test_output_dir / f"{profile_json_filename}.view.stdout.txt").write_text(
+                            view_completed.stdout,
+                            encoding="utf-8"
+                        )
+                    if view_completed.stderr:
+                        (test_output_dir / f"{profile_json_filename}.view.stderr.txt").write_text(
+                            view_completed.stderr,
+                            encoding="utf-8"
+                        )
+
+                    default_html = test_output_dir / "scalene-profile.html"
+                    if default_html.exists():
+                        default_html.replace(html_path)
+                    elif not html_path.exists():
+                        info["html_path"] = None
+                except Exception as view_exc:  # noqa: BLE001 - не прерываем JSON-профиль
+                    info["html_path"] = None
+                    info["view_error"] = str(view_exc)
+            else:
+                info["html_path"] = None
 
         return info
 
