@@ -125,7 +125,7 @@ def main():
     
     args = parser.parse_args()
     
-    print("🔬 ЗАПУСК БЕНЧМАРКА С ПРОФИЛИРОВАНИЕМ")
+    print("🔬 Профилирование бенчмарка")
     print("=" * 60)
     print(f"Библиотека: {args.library}")
     selected_profilers = args.profiling
@@ -176,7 +176,7 @@ def main():
         
         # Запускаем тесты
         print(f"\n🚀 Запуск тестов из: {test_dir}")
-        summary = runner.run_test_suite(
+        runner.run_test_suite(
             test_dir=test_dir,
             iterations=effective_iterations,
             max_tests=args.max_tests
@@ -193,8 +193,7 @@ def main():
             raw_files = list(profiling_dir.rglob("*.json"))
             print(f"   Сохранено сырых файлов: {len(raw_files)}")
 
-        print(f"\n✅ ВЫПОЛНЕНИЕ ЗАВЕРШЕНО")
-        print(f"📁 Результаты: {runner.run_dir}")
+        print(f"\n📁 Результаты: {runner.run_dir}")
         
         return 0
         
