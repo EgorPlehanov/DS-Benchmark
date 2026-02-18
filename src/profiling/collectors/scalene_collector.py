@@ -62,7 +62,7 @@ class ScaleneCollector:
     @staticmethod
     def _build_scalene_command(
         script_path: Path,
-        html_path: Path,
+        profile_json_path: Path,
         profile_only_filters: List[str],
         script_args: Optional[List[str]]
     ) -> List[str]:
@@ -70,13 +70,8 @@ class ScaleneCollector:
         args = [
             "scalene",
             "run",
-            "--cpu",
-            "--memory",
-            "--profile-all",
-            "--html",
-            "--no-browser",
-            "--outfile",
-            str(html_path),
+            "-o",
+            str(profile_json_path),
         ]
 
         if profile_only_filters:
@@ -88,8 +83,11 @@ class ScaleneCollector:
 
         return args
 
-    def _capture_scalene_profile_json(self, test_output_dir: Path, html_path: Path) -> Optional[str]:
+    def _capture_scalene_profile_json(self, test_output_dir: Path, profile_json_path: Path) -> Optional[str]:
         """Сохраняет raw profile JSON как артефакт конкретного шага (новое и legacy имя)."""
+        if profile_json_path.exists():
+            return str(profile_json_path.resolve())
+
         raw_candidates = [
             test_output_dir / "scalene-profile.json",
             test_output_dir / "profile.json",
@@ -99,9 +97,8 @@ class ScaleneCollector:
         if raw_profile_path is None:
             return None
 
-        target_profile_path = html_path.with_suffix(".profile.json")
-        raw_profile_path.replace(target_profile_path)
-        return str(target_profile_path.resolve())
+        raw_profile_path.replace(profile_json_path)
+        return str(profile_json_path.resolve())
 
     def profile_script(self,
                        script_path: Path,
@@ -131,11 +128,11 @@ class ScaleneCollector:
         timestamp = datetime.now().strftime("%H%M%S")
         test_output_dir = self._get_test_output_dir(test_name)
         if repeat_count is not None:
-            html_filename = f"{test_name}_{step_name}_rep{repeat_count}_{timestamp}.html"
+            profile_json_filename = f"{test_name}_{step_name}_rep{repeat_count}_{timestamp}.profile.json"
         else:
-            html_filename = f"{test_name}_{step_name}_iter{iteration}_{timestamp}.html"
-        html_path = (test_output_dir / html_filename).resolve()
-        info["html_path"] = str(html_path)
+            profile_json_filename = f"{test_name}_{step_name}_iter{iteration}_{timestamp}.profile.json"
+        profile_json_path = (test_output_dir / profile_json_filename).resolve()
+        info["html_path"] = None
 
         profile_only_filters = self._get_profile_only_filters()
         if profile_only_filters:
@@ -143,7 +140,7 @@ class ScaleneCollector:
 
         args = self._build_scalene_command(
             script_path=script_path,
-            html_path=html_path,
+            profile_json_path=profile_json_path,
             profile_only_filters=profile_only_filters,
             script_args=script_args,
         )
@@ -161,32 +158,32 @@ class ScaleneCollector:
                 env=env
             )
             if completed.stdout:
-                (test_output_dir / f"{html_filename}.stdout.txt").write_text(
+                (test_output_dir / f"{profile_json_filename}.stdout.txt").write_text(
                     completed.stdout,
                     encoding="utf-8"
                 )
             if completed.stderr:
-                (test_output_dir / f"{html_filename}.stderr.txt").write_text(
+                (test_output_dir / f"{profile_json_filename}.stderr.txt").write_text(
                     completed.stderr,
                     encoding="utf-8"
                 )
         except Exception as exc:  # noqa: BLE001 - сохраняем ошибку профилирования
             if isinstance(exc, subprocess.CalledProcessError):
                 if exc.stdout:
-                    (test_output_dir / f"{html_filename}.stdout.txt").write_text(
+                    (test_output_dir / f"{profile_json_filename}.stdout.txt").write_text(
                         exc.stdout,
                         encoding="utf-8"
                     )
                 if exc.stderr:
-                    (test_output_dir / f"{html_filename}.stderr.txt").write_text(
+                    (test_output_dir / f"{profile_json_filename}.stderr.txt").write_text(
                         exc.stderr,
                         encoding="utf-8"
                     )
             info["error"] = str(exc)
         finally:
-            profile_json_path = self._capture_scalene_profile_json(test_output_dir, html_path)
-            if profile_json_path:
-                info["profile_json_path"] = profile_json_path
+            captured_profile_path = self._capture_scalene_profile_json(test_output_dir, profile_json_path)
+            if captured_profile_path:
+                info["profile_json_path"] = captured_profile_path
 
         return info
 
