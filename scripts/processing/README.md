@@ -126,6 +126,40 @@ python scripts/processing/analyze_profiling_postprocessing.py \
 ```
 
 
+#### `plot_postprocessing_analysis.py`
+
+Builds visual plots from already prepared postprocessing artifacts (`stage_timings.csv`, `memory_stage_summary.csv`, `profiler_durations.csv`, `line_bottlenecks.csv`) so that profiling results can be interpreted quickly and unambiguously.
+
+**What it does:**
+- Auto-selects latest analysis folder (or accepts explicit `--analysis-dir`).
+- Generates a CPU stage timing heatmap.
+- Generates grouped speedup bars vs reference library.
+- Generates memory-ratio heatmap vs reference.
+- Generates grouped profiler-overhead bars (sum of per-stage durations).
+- Generates top line bottlenecks horizontal chart.
+- Writes a small `plot_summary.md` index.
+
+**Outputs (default):**
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/stage_timing_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/speedup_grouped_bar.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_ratio_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/profiler_overhead_grouped_bar.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_bottlenecks_top.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/plot_summary.md`
+
+**Typical usage:**
+
+```bash
+python scripts/processing/plot_postprocessing_analysis.py
+```
+
+```bash
+python scripts/processing/plot_postprocessing_analysis.py \
+  --analysis-dir results/profiling/processed_results/postprocessing_analysis/20260219_020406 \
+  --top-lines 15
+```
+
+
 ---
 
 #### `analyze_profiling_postprocessing.py`
@@ -162,4 +196,38 @@ python scripts/processing/analyze_profiling_postprocessing.py \
   --libraries all \
   --top-lines 5 \
   --path-filter library_only
+```
+
+
+#### `plot_postprocessing_analysis.py`
+
+Строит наглядные графики по уже подготовленным артефактам постобработки (`stage_timings.csv`, `memory_stage_summary.csv`, `profiler_durations.csv`, `line_bottlenecks.csv`), чтобы визуально и однозначно анализировать результаты профилирования.
+
+**Что делает скрипт:**
+- Автоматически берет последний каталог анализа (или использует переданный `--analysis-dir`).
+- Строит heatmap по CPU-таймингам этапов.
+- Строит grouped bar по speedup относительно reference.
+- Строит heatmap по отношению памяти к reference.
+- Строит grouped bar по накладным расходам профайлеров (сумма длительностей по этапам).
+- Строит горизонтальный график top line bottlenecks.
+- Добавляет индекс `plot_summary.md`.
+
+**Артефакты на выходе (по умолчанию):**
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/stage_timing_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/speedup_grouped_bar.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_ratio_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/profiler_overhead_grouped_bar.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_bottlenecks_top.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/plot_summary.md`
+
+**Пример запуска:**
+
+```bash
+python scripts/processing/plot_postprocessing_analysis.py
+```
+
+```bash
+python scripts/processing/plot_postprocessing_analysis.py \
+  --analysis-dir results/profiling/processed_results/postprocessing_analysis/20260219_020406 \
+  --top-lines 15
 ```
