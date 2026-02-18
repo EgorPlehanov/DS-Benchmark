@@ -190,47 +190,14 @@ def latest_run_dir(base_dir: Path, library: str) -> Path:
     return timestamps[-1]
 
 
-def latest_comparison_report(base_dir: Path) -> Path | None:
-    root = base_dir / "processed_results" / "comparison_report"
-    if not root.exists():
-        return None
-    runs = sorted([p for p in root.iterdir() if p.is_dir()])
-    if not runs:
-        return None
-    candidate = runs[-1] / "comparison_report.json"
-    return candidate if candidate.exists() else None
-
-
 def load_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def build_supported_map(base_dir: Path, reference: str, libraries: list[str]) -> tuple[dict[str, dict[str, bool]], str | None]:
-    support = {lib: {stage: True for stage in STAGES} for lib in libraries}
-    support_source: str | None = None
-
-    report_path = latest_comparison_report(base_dir)
-    if report_path is not None:
-        payload = load_json(report_path)
-        global_by_stage = payload.get("summary", {}).get("global", {}).get("by_stage", {})
-
-        if global_by_stage:
-            for lib in libraries:
-                if lib == reference:
-                    continue
-                lib_stage = global_by_stage.get(lib, {})
-                for stage in STAGES:
-                    compared_values = int(lib_stage.get(stage, {}).get("compared_values", 0))
-                    total_reference = int(lib_stage.get(stage, {}).get("total_reference_values", 0))
-                    support[lib][stage] = compared_values > 0 and total_reference > 0
-
-            support_source = str(report_path)
-            return support, support_source
-
-    # Fallback: derive support directly from test_results if comparison report is absent.
-    derived_support, derived_source = build_supported_map_from_test_results(base_dir, reference, libraries)
-    return derived_support, derived_source
+    # Support-map must be fully self-contained and not depend on other reports.
+    return build_supported_map_from_test_results(base_dir, reference, libraries)
 
 
 def to_repo_relative(path_str: str) -> str:
