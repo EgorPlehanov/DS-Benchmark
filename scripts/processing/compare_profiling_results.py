@@ -22,6 +22,7 @@ class DiffStat:
     mean_abs_diff: float = 0.0
     missing_paths: int = 0
     extra_paths: int = 0
+    support_status: str = "supported"
     top_diffs: list[tuple[str, float, float, float]] | None = None
 
 
@@ -135,15 +136,15 @@ def compare_stage(
     identical_threshold: float = 0.0,
 ) -> DiffStat:
     if reference_stage is None and target_stage is None:
-        return DiffStat()
+        return DiffStat(support_status="not_applicable")
 
     if reference_stage is None and target_stage is not None:
         extra = len(flatten_numeric(target_stage))
-        return DiffStat(extra_paths=extra)
+        return DiffStat(extra_paths=extra, support_status="extra_only")
 
     if reference_stage is not None and target_stage is None:
         missing = len(flatten_numeric(reference_stage))
-        return DiffStat(total_reference_values=missing, missing_paths=missing)
+        return DiffStat(total_reference_values=missing, missing_paths=missing, support_status="not_supported")
 
     ref_flat = flatten_numeric(reference_stage)
     tgt_flat = flatten_numeric(target_stage)
@@ -152,12 +153,14 @@ def compare_stage(
     missing = len(set(ref_flat) - set(tgt_flat))
     extra = len(set(tgt_flat) - set(ref_flat))
     total_reference = len(ref_flat)
+    compared = len(common)
 
     if not common:
         return DiffStat(
             total_reference_values=total_reference,
             missing_paths=missing,
             extra_paths=extra,
+            support_status="not_supported" if compared == 0 and total_reference > 0 else "supported",
         )
 
     raw_diffs = [
@@ -168,7 +171,6 @@ def compare_stage(
     identical_values = sum(1 for _, _, _, diff in raw_diffs if diff <= identical_threshold)
     top_diffs = sorted(raw_diffs, key=lambda item: item[3], reverse=True)[:top_n] if top_n else None
 
-    compared = len(common)
     return DiffStat(
         compared_values=compared,
         identical_values=identical_values,
@@ -179,6 +181,7 @@ def compare_stage(
         mean_abs_diff=sum(abs_diffs) / len(abs_diffs),
         missing_paths=missing,
         extra_paths=extra,
+        support_status="supported",
         top_diffs=top_diffs,
     )
 
@@ -308,6 +311,7 @@ def main() -> int:
         table_headers = [
             "library",
             "stage",
+            "support",
             "compared/total",
             "compared_%",
             "identical_%",
@@ -316,8 +320,8 @@ def main() -> int:
             "missing",
             "extra",
         ]
-        table_widths = [8, 5, 14, 10, 11, 12, 13, 7, 5]
-        table_aligns = ["left", "left", "right", "right", "right", "right", "right", "right", "right"]
+        table_widths = [8, 5, 13, 14, 10, 11, 12, 13, 7, 5]
+        table_aligns = ["left", "left", "left", "right", "right", "right", "right", "right", "right", "right"]
         table_header = format_columns(table_headers, table_widths, table_aligns)
         table_sep = build_separator(table_widths)
         print(table_header)
@@ -351,6 +355,7 @@ def main() -> int:
                     [
                         lib,
                         stage,
+                        stat.support_status,
                         f"{stat.compared_values}/{stat.total_reference_values}",
                         fmt_pct(stat.compared_percent),
                         fmt_pct(stat.identical_percent),
@@ -369,11 +374,13 @@ def main() -> int:
 
                 test_totals[lib]["identical"] += stat.identical_values
                 test_totals[lib]["compared"] += stat.compared_values
-                test_totals[lib]["total"] += stat.total_reference_values
+                if stat.support_status == "supported":
+                    test_totals[lib]["total"] += stat.total_reference_values
 
                 global_totals[lib][stage]["identical"] += stat.identical_values
                 global_totals[lib][stage]["compared"] += stat.compared_values
-                global_totals[lib][stage]["total"] += stat.total_reference_values
+                if stat.support_status == "supported":
+                    global_totals[lib][stage]["total"] += stat.total_reference_values
 
                 if stat.top_diffs:
                     for path, ref_val, tgt_val, abs_diff in stat.top_diffs:
@@ -427,9 +434,9 @@ def main() -> int:
 
     print("\nПо этапам:")
     text_lines.append("\nПо этапам:")
-    stage_headers = ["library", "stage", "compared/total", "compared_%", "identical_%"]
-    stage_widths = [8, 5, 14, 10, 11]
-    stage_aligns = ["left", "left", "right", "right", "right"]
+    stage_headers = ["library", "stage", "support", "compared/total", "compared_%", "identical_%"]
+    stage_widths = [8, 5, 13, 14, 10, 11]
+    stage_aligns = ["left", "left", "left", "right", "right", "right"]
     stage_header = format_columns(stage_headers, stage_widths, stage_aligns)
     stage_sep = build_separator(stage_widths)
     print(stage_header)
@@ -443,10 +450,12 @@ def main() -> int:
             totals = global_totals[lib][stage]
             compared_pct = compute_percent(totals["compared"], totals["total"])
             identical_pct = compute_percent(totals["identical"], totals["total"])
+            support_status = "supported" if totals["total"] > 0 else "not_supported"
             stage_row = format_columns(
                 [
                     lib,
                     stage,
+                    support_status,
                     f"{totals['compared']}/{totals['total']}",
                     fmt_pct(compared_pct),
                     fmt_pct(identical_pct),
@@ -460,6 +469,7 @@ def main() -> int:
                 "compared_values": totals["compared"],
                 "identical_values": totals["identical"],
                 "total_reference_values": totals["total"],
+                "support_status": support_status,
                 "compared_percent": compared_pct,
                 "identical_percent": identical_pct,
             }

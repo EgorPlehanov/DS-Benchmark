@@ -26,6 +26,7 @@ class StageTiming:
     mean_total_ms: float
     std_total_ms: float
     mean_per_repeat_ms: float
+    mean_step_repeat_count: float
     source_profiler: str
 
 
@@ -97,6 +98,15 @@ def latest_run_dir(base_dir: Path, library: str) -> Path:
     timestamps = sorted([p for p in lib_dir.iterdir() if p.is_dir()])
     if not timestamps:
         raise FileNotFoundError(f"Не найдено прогонов для библиотеки: {library}")
+    for run_dir in reversed(timestamps):
+        cpu_files = collect_profiler_files(run_dir, "cpu")
+        if not cpu_files:
+            continue
+        for file in cpu_files:
+            payload = load_json(file)
+            stage = normalize_stage(str(payload.get("step", "")))
+            if stage in STAGES:
+                return run_dir
     return timestamps[-1]
 
 
@@ -222,10 +232,22 @@ def build_stage_timings_from_cpu(run_dir: Path, library: str) -> list[StageTimin
         vals = stage_values.get(stage, [])
         if vals:
             totals = [x[0] for x in vals]
-            per_repeat = [x[0] / max(1, x[1]) for x in vals]
-            out.append(StageTiming(library, stage, len(vals), mean(totals), pstdev(totals) if len(totals) > 1 else 0.0, mean(per_repeat), "cpu"))
+            repeats = [max(1, x[1]) for x in vals]
+            per_repeat = [x[0] / rep for x, rep in zip(vals, repeats)]
+            out.append(
+                StageTiming(
+                    library,
+                    stage,
+                    len(vals),
+                    mean(totals),
+                    pstdev(totals) if len(totals) > 1 else 0.0,
+                    mean(per_repeat),
+                    mean(repeats),
+                    "cpu",
+                )
+            )
         else:
-            out.append(StageTiming(library, stage, 0, 0.0, 0.0, 0.0, "cpu"))
+            out.append(StageTiming(library, stage, 0, 0.0, 0.0, 0.0, 0.0, "cpu"))
     return out
 
 
@@ -444,6 +466,17 @@ def build_markdown_report(
             vals.append("n/a" if rec is None or rec.sample_count == 0 else f"{rec.mean_per_repeat_ms:.2f}")
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
+    lines += ["", "### Mean step repeat count captured from CPU metadata", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    for lib in libs:
+        vals = []
+        for stage in STAGES:
+            if not support_map.get(lib, {}).get(stage, True):
+                vals.append("n/s")
+                continue
+            rec = next((x for x in stage_timings if x.library == lib and x.stage == stage), None)
+            vals.append("n/a" if rec is None or rec.sample_count == 0 else f"{rec.mean_step_repeat_count:.2f}")
+        lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
+
     lines += ["", "### Relative speedup vs reference (reference_time / lib_time)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
@@ -573,6 +606,7 @@ def main() -> int:
                 "mean_total_ms": round(x.mean_total_ms, 6),
                 "std_total_ms": round(x.std_total_ms, 6),
                 "mean_per_repeat_ms": round(x.mean_per_repeat_ms, 6),
+                "mean_step_repeat_count": round(x.mean_step_repeat_count, 6),
                 "source_profiler": x.source_profiler,
                 "speedup_vs_reference": None if (not supported or speedups[x.library][x.stage] is None) else round(float(speedups[x.library][x.stage]), 6),
             }
@@ -641,7 +675,22 @@ def main() -> int:
         for x in sorted(all_scalene_hotspots, key=lambda i: (i.library, i.stage, -i.cpu_percent))
     ]
 
-    write_csv(out_dir / "stage_timings.csv", timings_rows, ["library", "stage", "supported", "sample_count", "mean_total_ms", "std_total_ms", "mean_per_repeat_ms", "source_profiler", "speedup_vs_reference"])
+    write_csv(
+        out_dir / "stage_timings.csv",
+        timings_rows,
+        [
+            "library",
+            "stage",
+            "supported",
+            "sample_count",
+            "mean_total_ms",
+            "std_total_ms",
+            "mean_per_repeat_ms",
+            "mean_step_repeat_count",
+            "source_profiler",
+            "speedup_vs_reference",
+        ],
+    )
     write_csv(out_dir / "profiler_durations.csv", duration_rows, ["library", "profiler", "stage", "supported", "sample_count", "mean_duration_ms", "std_duration_ms"])
     write_csv(out_dir / "memory_stage_summary.csv", memory_rows, ["library", "stage", "supported", "sample_count", "mean_peak_mb", "max_peak_mb", "memory_ratio_vs_reference"])
     write_csv(out_dir / "line_bottlenecks.csv", line_rows, ["library", "stage", "profiler", "filename", "line", "total_time_s", "hits", "code"])
