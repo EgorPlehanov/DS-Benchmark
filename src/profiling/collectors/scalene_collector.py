@@ -160,6 +160,9 @@ class ScaleneCollector:
 
         env = dict(os.environ)
         env.setdefault("PYTHONIOENCODING", "utf-8")
+        project_root = str(Path.cwd().resolve())
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = project_root if not existing_pythonpath else f"{project_root}{os.pathsep}{existing_pythonpath}"
 
         try:
             completed = subprocess.run(
@@ -266,6 +269,7 @@ class ScaleneCollector:
                     "--input", str(Path(input_path).resolve()),
                     "--alpha", str(alpha),
                     "--repeat", str(repeat),
+                    "--project-root", str(Path.cwd().resolve()),
                 ],
                 test_name=test_name,
                 step_name=step_name,
@@ -287,11 +291,7 @@ class ScaleneCollector:
             import tempfile
             from pathlib import Path
 
-            project_root = Path.cwd()
-            sys.path.insert(0, str(project_root))
-
-            from src.runners.universal_runner import UniversalBenchmarkRunner
-            from src.adapters.factory import create_adapter
+            project_root = None
 
 
             def parse_args():
@@ -301,10 +301,12 @@ class ScaleneCollector:
                 parser.add_argument("--input", required=True, help="Path to DASS test JSON")
                 parser.add_argument("--alpha", type=float, default=0.1, help="Discounting alpha for step3")
                 parser.add_argument("--repeat", type=int, default=1, help="Repeat count to ensure enough profiling samples")
+                parser.add_argument("--project-root", required=True, help="Path to project root to import local src package")
                 return parser.parse_args()
 
 
             def load_adapter(adapter_name: str):
+                from src.adapters.factory import create_adapter
                 return create_adapter(adapter_name)
 
 
@@ -344,6 +346,12 @@ class ScaleneCollector:
 
             def main():
                 args = parse_args()
+                project_root = Path(args.project_root).resolve()
+                if str(project_root) not in sys.path:
+                    sys.path.insert(0, str(project_root))
+
+                from src.runners.universal_runner import UniversalBenchmarkRunner
+
                 input_path = Path(args.input)
                 test_data = json.loads(input_path.read_text(encoding="utf-8"))
 
