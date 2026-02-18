@@ -614,7 +614,7 @@ def main() -> int:
     parser.add_argument(
         "--include-scalene",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help="Включать секцию Scalene в markdown-отчет (по умолчанию: включена)",
     )
     args = parser.parse_args()
