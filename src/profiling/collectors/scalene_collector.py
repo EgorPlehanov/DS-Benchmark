@@ -59,10 +59,44 @@ class ScaleneCollector:
         # Используем полные пути без дубликатов, чтобы избежать лишнего шума в profile_only.
         return [str(py_file.resolve().as_posix()) for py_file in python_files]
 
+    @staticmethod
+    def _build_scalene_command(
+        script_path: Path,
+        html_path: Path,
+        profile_only_filters: List[str],
+        script_args: Optional[List[str]]
+    ) -> List[str]:
+        """Собирает команду запуска scalene под CLI c подкомандой run (v2.x+)."""
+        args = [
+            "scalene",
+            "run",
+            "--cpu",
+            "--memory",
+            "--profile-all",
+            "--html",
+            "--no-browser",
+            "--outfile",
+            str(html_path),
+        ]
+
+        if profile_only_filters:
+            args.extend(["--profile-only", ",".join(profile_only_filters)])
+
+        args.append(str(script_path))
+        if script_args:
+            args.extend(script_args)
+
+        return args
+
     def _capture_scalene_profile_json(self, test_output_dir: Path, html_path: Path) -> Optional[str]:
-        """Сохраняет raw profile.json как артефакт конкретного шага (если создан Scalene)."""
-        raw_profile_path = test_output_dir / "profile.json"
-        if not raw_profile_path.exists():
+        """Сохраняет raw profile JSON как артефакт конкретного шага (новое и legacy имя)."""
+        raw_candidates = [
+            test_output_dir / "scalene-profile.json",
+            test_output_dir / "profile.json",
+        ]
+
+        raw_profile_path = next((path for path in raw_candidates if path.exists()), None)
+        if raw_profile_path is None:
             return None
 
         target_profile_path = html_path.with_suffix(".profile.json")
@@ -103,25 +137,16 @@ class ScaleneCollector:
         html_path = (test_output_dir / html_filename).resolve()
         info["html_path"] = str(html_path)
 
-        args = [
-            "scalene",
-            "--cpu",
-            "--memory",
-            "--profile-all",
-            "--html",
-            "--no-browser",
-            "--outfile",
-            str(html_path),
-        ]
-
         profile_only_filters = self._get_profile_only_filters()
         if profile_only_filters:
-            args.extend(["--profile-only", ",".join(profile_only_filters)])
             info["profile_only"] = profile_only_filters
 
-        args.append(str(script_path))
-        if script_args:
-            args.extend(script_args)
+        args = self._build_scalene_command(
+            script_path=script_path,
+            html_path=html_path,
+            profile_only_filters=profile_only_filters,
+            script_args=script_args,
+        )
 
         try:
             env = dict(os.environ)
