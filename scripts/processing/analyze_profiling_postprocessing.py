@@ -89,6 +89,86 @@ def normalize_stage(raw_stage: str) -> str:
     return raw_stage.split("_", 1)[0]
 
 
+def flatten_numeric(data: Any, prefix: str = "") -> dict[str, float]:
+    """Плоское представление только числовых полей вложенной структуры."""
+    flat: dict[str, float] = {}
+    if isinstance(data, dict):
+        for key, value in data.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            flat.update(flatten_numeric(value, path))
+    elif isinstance(data, list):
+        for index, value in enumerate(data):
+            path = f"{prefix}[{index}]" if prefix else f"[{index}]"
+            flat.update(flatten_numeric(value, path))
+    elif isinstance(data, (int, float)) and not isinstance(data, bool):
+        flat[prefix] = float(data)
+    return flat
+
+
+def latest_run_with_results(base_dir: Path, library: str) -> Path | None:
+    lib_dir = base_dir / library
+    if not lib_dir.exists():
+        return None
+    timestamps = sorted([p for p in lib_dir.iterdir() if p.is_dir()])
+    for run_dir in reversed(timestamps):
+        test_dir = run_dir / "test_results"
+        if test_dir.exists() and any(test_dir.glob("*_results.json")):
+            return run_dir
+    return None
+
+
+def build_supported_map_from_test_results(base_dir: Path, reference: str, libraries: list[str]) -> tuple[dict[str, dict[str, bool]], str | None]:
+    support = {lib: {stage: True for stage in STAGES} for lib in libraries}
+
+    ref_run = latest_run_with_results(base_dir, reference)
+    if ref_run is None:
+        return support, None
+
+    ref_test_dir = ref_run / "test_results"
+    ref_files = sorted(ref_test_dir.glob("*_results.json"))
+    if not ref_files:
+        return support, None
+
+    for lib in libraries:
+        if lib != reference:
+            for stage in STAGES:
+                support[lib][stage] = False
+
+    runs_by_lib = {lib: latest_run_with_results(base_dir, lib) for lib in libraries if lib != reference}
+
+    for ref_file in ref_files:
+        test_name = ref_file.name
+        ref_payload = load_json(ref_file)
+        ref_results = ref_payload.get("results", {}) if isinstance(ref_payload.get("results", {}), dict) else {}
+
+        for lib in libraries:
+            if lib == reference:
+                continue
+            lib_run = runs_by_lib.get(lib)
+            if lib_run is None:
+                continue
+            tgt_file = lib_run / "test_results" / test_name
+            if not tgt_file.exists():
+                continue
+            tgt_payload = load_json(tgt_file)
+            tgt_results = tgt_payload.get("results", {}) if isinstance(tgt_payload.get("results", {}), dict) else {}
+
+            for stage in STAGES:
+                ref_stage = ref_results.get(stage)
+                tgt_stage = tgt_results.get(stage)
+                if ref_stage is None or tgt_stage is None:
+                    continue
+                ref_flat = flatten_numeric(ref_stage)
+                tgt_flat = flatten_numeric(tgt_stage)
+                if not ref_flat:
+                    continue
+                if set(ref_flat).intersection(tgt_flat):
+                    support[lib][stage] = True
+
+    source = f"derived_from_test_results:{ref_run}"
+    return support, source
+
+
 def discover_libraries(base_dir: Path) -> list[str]:
     return sorted([p.name for p in base_dir.iterdir() if p.is_dir() and p.name != "processed_results"])
 
@@ -131,23 +211,26 @@ def build_supported_map(base_dir: Path, reference: str, libraries: list[str]) ->
     support_source: str | None = None
 
     report_path = latest_comparison_report(base_dir)
-    if report_path is None:
-        return support, support_source
+    if report_path is not None:
+        payload = load_json(report_path)
+        global_by_stage = payload.get("summary", {}).get("global", {}).get("by_stage", {})
 
-    payload = load_json(report_path)
-    global_by_stage = payload.get("summary", {}).get("global", {}).get("by_stage", {})
+        if global_by_stage:
+            for lib in libraries:
+                if lib == reference:
+                    continue
+                lib_stage = global_by_stage.get(lib, {})
+                for stage in STAGES:
+                    compared_values = int(lib_stage.get(stage, {}).get("compared_values", 0))
+                    total_reference = int(lib_stage.get(stage, {}).get("total_reference_values", 0))
+                    support[lib][stage] = compared_values > 0 and total_reference > 0
 
-    for lib in libraries:
-        if lib == reference:
-            continue
-        lib_stage = global_by_stage.get(lib, {})
-        for stage in STAGES:
-            compared_values = int(lib_stage.get(stage, {}).get("compared_values", 0))
-            total_reference = int(lib_stage.get(stage, {}).get("total_reference_values", 0))
-            support[lib][stage] = compared_values > 0 and total_reference > 0
+            support_source = str(report_path)
+            return support, support_source
 
-    support_source = str(report_path)
-    return support, support_source
+    # Fallback: derive support directly from test_results if comparison report is absent.
+    derived_support, derived_source = build_supported_map_from_test_results(base_dir, reference, libraries)
+    return derived_support, derived_source
 
 
 def to_repo_relative(path_str: str) -> str:
