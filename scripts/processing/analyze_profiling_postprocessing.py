@@ -443,9 +443,11 @@ def build_markdown_report(
     memory_ratios: dict[str, dict[str, float | None]],
     support_map: dict[str, dict[str, bool]],
     support_source: str | None,
+    include_scalene: bool,
 ) -> str:
     lines: list[str] = [
         "# Postprocessing analysis of profiling runs",
+        "_Постобработка результатов профилирования_",
         "",
         f"Reference library: `{reference}`",
         f"Path filter mode: `{path_mode}`",
@@ -455,7 +457,7 @@ def build_markdown_report(
     libs = sorted({x.library for x in stage_timings})
 
     # CPU
-    lines += ["## CPU", "", "### Stage timings from CPU profiler metadata (mean per repeat, ms)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    lines += ["## CPU", "_Процессорное время (CPU)_", "", "### Stage timings from CPU profiler metadata (mean per repeat, ms)", "_Тайминги этапов из метаданных CPU-профайлера (среднее на повтор, мс)_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -466,7 +468,7 @@ def build_markdown_report(
             vals.append("n/a" if rec is None or rec.sample_count == 0 else f"{rec.mean_per_repeat_ms:.2f}")
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "### Mean step repeat count captured from CPU metadata", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    lines += ["", "### Mean step repeat count captured from CPU metadata", "_Среднее число повторов этапа из метаданных CPU_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -477,7 +479,7 @@ def build_markdown_report(
             vals.append("n/a" if rec is None or rec.sample_count == 0 else f"{rec.mean_step_repeat_count:.2f}")
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "### Relative speedup vs reference (reference_time / lib_time)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    lines += ["", "### Relative speedup vs reference (reference_time / lib_time)", "_Относительное ускорение относительно эталона (time_ref / time_lib)_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -489,7 +491,7 @@ def build_markdown_report(
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
     # Memory
-    lines += ["", "## Memory", "", "### Peak memory by stage (MB)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    lines += ["", "## Memory", "_Память_", "", "### Peak memory by stage (MB)", "_Пиковое потребление памяти по этапам (МБ)_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -500,7 +502,7 @@ def build_markdown_report(
             vals.append("n/a" if rec is None or rec.sample_count == 0 else f"{rec.mean_peak_mb:.2f}")
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "### Relative memory vs reference (lib_peak / ref_peak)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    lines += ["", "### Relative memory vs reference (lib_peak / ref_peak)", "_Относительная память относительно эталона (peak_lib / peak_ref)_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -512,34 +514,36 @@ def build_markdown_report(
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
     # Line
-    lines += ["", "## Line", "", "### Bottlenecks from line profiler (filtered, supported stages only)", "", "| Library | Stage | File:Line | Total time (s) | Hits | Code |", "|---|---|---|---:|---:|---|"]
+    lines += ["", "## Line", "_Построчный профиль (line profiler)_", "", "### Bottlenecks from line profiler (filtered, supported stages only)", "_Узкие места из line profiler (после фильтрации, только поддерживаемые этапы)_", "", "| Library | Stage | File:Line | Total time (s) | Hits | Code |", "|---|---|---|---:|---:|---|"]
     for b in sorted(line_bottlenecks, key=lambda x: (x.library, x.stage, -x.total_time_s)):
         code = b.code.replace('|', '\\|')
         lines.append(f"| {b.library} | {b.stage} | `{b.filename}:{b.line}` | {b.total_time_s:.4f} | {b.hits} | `{code}` |")
 
     # Scalene
-    lines += ["", "## Scalene", "", "### Stage summary (filtered library files)", "", "| Library | Stage | Samples | Mean elapsed (ms) | Mean max footprint (MB) | Mean filtered CPU % |", "|---|---|---:|---:|---:|---:|"]
-    for rec in sorted(scalene_summaries, key=lambda x: (x.library, x.stage)):
-        sup = support_map.get(rec.library, {}).get(rec.stage, True)
-        if not sup:
-            lines.append(f"| {rec.library} | {rec.stage} | n/s | n/s | n/s | n/s |")
-        else:
-            lines.append(f"| {rec.library} | {rec.stage} | {rec.sample_count} | {rec.mean_elapsed_ms:.2f} | {rec.mean_max_footprint_mb:.2f} | {rec.mean_filtered_cpu_percent:.2f} |")
+    if include_scalene:
+        lines += ["", "## Scalene", "_Scalene-профайлер_", "", "### Stage summary (filtered library files)", "_Сводка по этапам (фильтр по файлам библиотеки)_", "", "| Library | Stage | Samples | Mean elapsed (ms) | Mean max footprint (MB) | Mean filtered CPU % |", "|---|---|---:|---:|---:|---:|"]
+        for rec in sorted(scalene_summaries, key=lambda x: (x.library, x.stage)):
+            sup = support_map.get(rec.library, {}).get(rec.stage, True)
+            if not sup:
+                lines.append(f"| {rec.library} | {rec.stage} | n/s | n/s | n/s | n/s |")
+            else:
+                lines.append(f"| {rec.library} | {rec.stage} | {rec.sample_count} | {rec.mean_elapsed_ms:.2f} | {rec.mean_max_footprint_mb:.2f} | {rec.mean_filtered_cpu_percent:.2f} |")
 
-    lines += ["", "### Top hotspots by CPU % (filtered library files)", "", "| Library | Stage | File:Line | CPU % | Peak MB | Malloc MB | Code |", "|---|---|---|---:|---:|---:|---|"]
-    for h in sorted(scalene_hotspots, key=lambda x: (x.library, x.stage, -x.cpu_percent)):
-        code = h.code.replace('|', '\\|')
-        lines.append(f"| {h.library} | {h.stage} | `{h.filename}:{h.line}` | {h.cpu_percent:.2f} | {h.peak_mb:.2f} | {h.malloc_mb:.2f} | `{code}` |")
+        lines += ["", "### Top hotspots by CPU % (filtered library files)", "_Топ горячих строк по CPU % (с фильтром по файлам библиотеки)_", "", "| Library | Stage | File:Line | CPU % | Peak MB | Malloc MB | Code |", "|---|---|---|---:|---:|---:|---|"]
+        for h in sorted(scalene_hotspots, key=lambda x: (x.library, x.stage, -x.cpu_percent)):
+            code = h.code.replace('|', '\\|')
+            lines.append(f"| {h.library} | {h.stage} | `{h.filename}:{h.line}` | {h.cpu_percent:.2f} | {h.peak_mb:.2f} | {h.malloc_mb:.2f} | `{code}` |")
 
     # Coverage / harness overhead
-    lines += ["", "## Coverage", "", "### Stage support matrix", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---|---|---|---|"]
+    lines += ["", "## Coverage", "_Покрытие и валидность сравнений_", "", "### Stage support matrix", "_Матрица поддержки этапов_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---|---|---|---|"]
     for lib in libs:
         vals = ["supported" if support_map.get(lib, {}).get(stage, True) else "not_supported" for stage in STAGES]
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "### Profiler duration coverage (profiling overhead)", "", "| Library | Profiler | Stage | Support | Samples | Mean duration (ms) | Std (ms) |", "|---|---|---|---|---:|---:|---:|"]
+    lines += ["", "### Profiler duration coverage (profiling overhead)", "_Покрытие длительностей профайлеров (накладные расходы профилирования)_", "", "| Library | Profiler | Stage | Support | Samples | Mean duration (ms) | Std (ms) |", "|---|---|---|---|---:|---:|---:|"]
     for rec in sorted(profiler_durations, key=lambda x: (x.library, x.profiler, x.stage)):
-        sup = "supported" if support_map.get(rec.library, {}).get(rec.stage, True) else "not_supported"
+        supported = support_map.get(rec.library, {}).get(rec.stage, True)
+        sup = "supported" if supported else "not_supported (instrumentation only / excluded from comparison)"
         lines.append(f"| {rec.library} | {rec.profiler} | {rec.stage} | {sup} | {rec.sample_count} | {rec.mean_duration_ms:.2f} | {rec.std_duration_ms:.2f} |")
 
     return "\n".join(lines).rstrip() + "\n"
@@ -556,6 +560,12 @@ def main() -> int:
         choices=["library_only", "all"],
         default="library_only",
         help="library_only: our->src/core/*, others->external/*; all: без фильтра путей",
+    )
+    parser.add_argument(
+        "--include-scalene",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Включать секцию Scalene в markdown-отчет (по умолчанию: включена)",
     )
     args = parser.parse_args()
 
@@ -710,6 +720,7 @@ def main() -> int:
         memory_ratios=memory_ratios,
         support_map=support_map,
         support_source=support_source,
+        include_scalene=args.include_scalene,
     )
     (out_dir / "analysis_report.md").write_text(report_md, encoding="utf-8")
 
