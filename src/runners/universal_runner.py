@@ -8,6 +8,7 @@ import json
 import time
 import tracemalloc
 import statistics
+import sys
 import psutil
 from typing import Dict, List, Any, Optional, Tuple, Callable
 from datetime import datetime
@@ -58,6 +59,22 @@ class UniversalBenchmarkRunner:
     def set_run_parameters(self, **parameters: Any) -> None:
         """Сохраняет параметры запуска только в отдельный файл run_parameters.json."""
         self.artifact_manager.save_run_parameters(parameters)
+
+    def _supports_cr(self) -> bool:
+        """Возвращает True, если stdout поддерживает carriage return."""
+        return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+    def _render_inline_progress(self, text: str) -> None:
+        """Печатает прогресс в текущей строке или fallback-строкой."""
+        if self._supports_cr():
+            print(f"\r{text}", end="", flush=True)
+            return
+        print(text)
+
+    def _finish_inline_progress(self) -> None:
+        """Завершает inline-печать переводом строки."""
+        if self._supports_cr():
+            print()
     
     def run_test(self, test_data: Dict[str, Any], 
              test_name: str,
@@ -66,8 +83,7 @@ class UniversalBenchmarkRunner:
         """
         Запускает один тест.
         """
-        print(f"\n🧪 Запуск теста: {test_name}")
-        print(f"   Итераций: {iterations}")
+        print(f"\n🧪 Тест: {test_name} (итераций: {iterations})")
         
         # Инициализация результатов
         test_results = {
@@ -96,8 +112,8 @@ class UniversalBenchmarkRunner:
         
         # Выполняем итерации
         for i in range(iterations):
-            print(f"   Итерация {i+1}/{iterations}...", end="", flush=True)
-            
+            self._render_inline_progress(f"   ↻ Итерация {i+1}/{iterations}")
+
             iteration_results = self._run_single_iteration(
                 loaded_data=loaded_data,
                 test_data=test_data,
@@ -107,7 +123,8 @@ class UniversalBenchmarkRunner:
             )
             
             test_results["iterations"].append(iteration_results)
-            print(" ✓")
+            self._render_inline_progress(f"   ✅ Итерация {i+1}/{iterations}")
+            self._finish_inline_progress()
         
         # Агрегируем результаты
         test_results["aggregated"] = self._aggregate_iteration_results(
@@ -742,7 +759,7 @@ class UniversalBenchmarkRunner:
                   iterations: int = 3,
                   max_tests: Optional[int] = None) -> Dict[str, Any]:
         """Запускает набор тестов из директории и формирует единый run-summary."""
-        print("\n🚀 ЗАПУСК НАБОРА ТЕСТОВ")
+        print("\n🚀 Запуск набора тестов")
         print(f"📁 Директория: {test_dir}")
         print(f"🔄 Итераций на тест: {iterations}")
 
@@ -755,11 +772,16 @@ class UniversalBenchmarkRunner:
         if max_tests and max_tests < len(test_files):
             test_files = test_files[:max_tests]
 
-        print(f"📄 Найдено тестов: {len(test_files)}")
+        total_tests = len(test_files)
+        print(f"📄 Найдено тестов: {total_tests}")
+        print("\n📊 Прогресс выполнения:")
+
+        if total_tests == 0:
+            print("⚠️  Тесты не найдены — будет сформирован пустой run_summary.")
 
         for i, test_file in enumerate(test_files, 1):
             test_name = os.path.splitext(os.path.basename(test_file))[0]
-            print(f"\n[{i}/{len(test_files)}] Тест: {test_name}")
+            self._render_inline_progress(f"🧪 [{i}/{total_tests}] {test_name} ...")
             try:
                 with open(test_file, 'r', encoding='utf-8') as f:
                     test_data = json.load(f)
@@ -768,9 +790,11 @@ class UniversalBenchmarkRunner:
                 sources_count = len(test_data.get("bba_sources", []))
                 alphas = [0.1] * sources_count
                 self.run_test(test_data=test_data, test_name=test_name, iterations=iterations, alphas=alphas)
-                print(f"   ✅ Тест {test_name} выполнен")
+                self._render_inline_progress(f"✅ [{i}/{total_tests}] {test_name}")
+                self._finish_inline_progress()
             except Exception as e:
-                print(f"   ❌ Ошибка при выполнении теста {test_name}: {e}")
+                self._render_inline_progress(f"❌ [{i}/{total_tests}] {test_name}: {e}")
+                self._finish_inline_progress()
                 failed_test_result = {
                     "metadata": {
                         "test_name": test_name,
@@ -789,7 +813,8 @@ class UniversalBenchmarkRunner:
         self.artifact_manager.save_json("run_summary.json", run_summary, root_dir=True)
         self._create_final_text_report(run_summary)
 
-        print("\n✅ ВЫПОЛНЕНИЕ ЗАВЕРШЕНО")
+        print("\n✅ Выполнение набора тестов завершено")
+        print()
         print(f"📊 Сводка JSON: {self.run_dir}/run_summary.json")
         print(f"📄 Сводка TXT: {self.run_dir}/logs/final_report.txt")
         return run_summary

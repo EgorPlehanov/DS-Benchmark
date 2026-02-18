@@ -125,25 +125,25 @@ def main():
     
     args = parser.parse_args()
     
-    print("🔬 ЗАПУСК БЕНЧМАРКА С ПРОФИЛИРОВАНИЕМ")
+    print("🔬 Профилирование бенчмарка")
     print("=" * 60)
-    print(f"Библиотека: {args.library}")
+    print(f"📚 Библиотека: {args.library}")
     selected_profilers = args.profiling
     profiling_mode = "off" if not selected_profilers else "full" if set(selected_profilers) == available_profilers else "custom"
-    print(f"Профилирование: {profiling_mode}")
+    print(f"⚙️  Режим профилирования: {profiling_mode}")
     if selected_profilers:
-        print(f"Профайлеры: {', '.join(selected_profilers)}")
+        print(f"🧰 Профайлеры: {', '.join(selected_profilers)}")
     else:
-        print("Профайлеры: отключены")
-    print(f"Повторов каждого шага: {args.iterations}")
-    print(f"Нормализация путей: {'включена' if args.sanitize_paths else 'выключена'}")
+        print("🧰 Профайлеры: отключены")
+    print(f"🔁 Повторов каждого шага: {args.iterations}")
+    print(f"🛡️  Нормализация путей: {'включена' if args.sanitize_paths else 'выключена'}")
     
     runner = None
 
     try:
         # Получаем путь к тестам
         test_dir = get_test_dir(args.tests)
-        print(f"Тесты: {test_dir}")
+        print(f"🧪 Тесты: {test_dir}")
         
         # Создаем адаптер
         adapter = create_adapter(args.library)
@@ -175,8 +175,7 @@ def main():
         )
         
         # Запускаем тесты
-        print(f"\n🚀 Запуск тестов из: {test_dir}")
-        summary = runner.run_test_suite(
+        runner.run_test_suite(
             test_dir=test_dir,
             iterations=effective_iterations,
             max_tests=args.max_tests
@@ -193,8 +192,7 @@ def main():
             raw_files = list(profiling_dir.rglob("*.json"))
             print(f"   Сохранено сырых файлов: {len(raw_files)}")
 
-        print(f"\n✅ ВЫПОЛНЕНИЕ ЗАВЕРШЕНО")
-        print(f"📁 Результаты: {runner.run_dir}")
+        print(f"\n📁 Результаты: {runner.run_dir}")
         
         return 0
         

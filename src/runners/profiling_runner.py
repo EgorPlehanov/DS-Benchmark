@@ -144,8 +144,8 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                     base_metrics["scalene"] = self._prepare_profiler_payload("scalene", scalene_info)
             return result, base_metrics
         
-        print(f"   📊 Профилирование {step_name}...", end="", flush=True)
-        
+        self._render_inline_progress(f"      📊 {step_name} ...")
+
         try:
             result, profile_result = self.profiler.profile(func, *args, **kwargs)
             
@@ -214,12 +214,14 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
                     base_metrics["error"] = error_info.get('error', 'Unknown error')
                     base_metrics["error_type"] = error_info.get('error_type', 'Exception')
             
-            print(" ✓")
+            self._render_inline_progress(f"      ✅ {step_name}")
+            self._finish_inline_progress()
             return result, base_metrics
             
         except Exception as e:
-            print(f" ❌ (ошибка профилирования: {str(e)[:50]}...)")
-            
+            self._render_inline_progress(f"      ❌ {step_name}: {str(e)[:50]}...")
+            self._finish_inline_progress()
+
             return None, {
                 "time_ms": 0.0,
                 "time_per_repeat_ms": 0.0,
@@ -348,8 +350,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         iterations интерпретируется как количество повторов каждого шага
         внутри одного прогона теста.
         """
-        print(f"\n🧪 Запуск теста: {test_name}")
-        print(f"   Повторов на шаг: {iterations}")
         step_repeat_count = max(1, iterations)
         
         test_results = {
@@ -382,7 +382,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             step_repeat_count=step_repeat_count
         )
         test_results["iterations"].append(iteration_results)
-        print(" ✓")
 
         self._save_test_results(test_results, test_name)
         self.results.append(test_results)
