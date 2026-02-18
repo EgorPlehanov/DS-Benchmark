@@ -1,5 +1,7 @@
 """Адаптер для библиотеки py_dempster_shafer (API MassFunction через модуль pyds)."""
 
+import sys
+from pathlib import Path
 from typing import Any, Dict, List, Set, Union
 
 from .base_adapter import BaseDempsterShaferAdapter
@@ -25,6 +27,11 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
     def _ensure_backend(self):
         if self._MassFunction is not None:
             return
+
+        project_root = Path(__file__).resolve().parents[2]
+        vendored_lib = project_root / "external" / "py_dempster_shafer"
+        if str(vendored_lib) not in sys.path:
+            sys.path.insert(0, str(vendored_lib))
 
         try:
             from pyds import MassFunction  # type: ignore
@@ -138,4 +145,3 @@ class PyDempsterShaferAdapter(BaseDempsterShaferAdapter):
 
     def _format_plain_bpa(self, bpa: Dict[frozenset, float]) -> Dict[str, float]:
         return {self._format_subset(set(k)): round(float(v), 10) for k, v in bpa.items()}
-
