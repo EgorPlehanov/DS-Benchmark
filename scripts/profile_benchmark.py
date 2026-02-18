@@ -185,10 +185,12 @@ def main():
         if selected_profilers:
             profiling_dir = Path(runner.profiling_dir)
             run_summary_path = Path(runner.run_dir) / "run_summary.json"
+            run_final_report_path = Path(runner.run_dir) / "logs" / "final_report.txt"
             print("\n📊 ДАННЫЕ ПРОФИЛИРОВАНИЯ:")
             print(f"   Сырые данные профайлеров: {profiling_dir}")
-            print(f"   Сводка запуска: {run_summary_path}")
-
+            print(f"   Сводка запуска JSON: {run_summary_path}")
+            print(f"   Сводка запуска TXT: {run_final_report_path}")
+            
             raw_files = list(profiling_dir.rglob("*.json"))
             print(f"   Сохранено сырых файлов: {len(raw_files)}")
 
