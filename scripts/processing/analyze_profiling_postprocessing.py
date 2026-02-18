@@ -60,6 +60,28 @@ class Bottleneck:
     hits: int
 
 
+@dataclass
+class ScaleneStageSummary:
+    library: str
+    stage: str
+    sample_count: int
+    mean_elapsed_ms: float
+    mean_max_footprint_mb: float
+    mean_filtered_cpu_percent: float
+
+
+@dataclass
+class ScaleneHotspot:
+    library: str
+    stage: str
+    filename: str
+    line: int
+    code: str
+    cpu_percent: float
+    peak_mb: float
+    malloc_mb: float
+
+
 def normalize_stage(raw_stage: str) -> str:
     if not raw_stage:
         return ""
@@ -95,7 +117,6 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def build_supported_map(base_dir: Path, reference: str, libraries: list[str]) -> tuple[dict[str, dict[str, bool]], str | None]:
-    """Строит карту поддержки этапов по comparison_report (если доступен)."""
     support = {lib: {stage: True for stage in STAGES} for lib in libraries}
     support_source: str | None = None
 
@@ -131,7 +152,6 @@ def to_repo_relative(path_str: str) -> str:
 def is_allowed_library_path(rel_path: str, library: str, mode: str) -> bool:
     if mode == "all":
         return True
-
     p = rel_path.lower()
     if library == "our":
         return p.startswith("src/core/")
@@ -142,7 +162,6 @@ def collect_profiler_files(run_dir: Path, profiler: str) -> list[Path]:
     root = run_dir / "profilers" / profiler
     if not root.exists():
         return []
-
     if profiler == "scalene":
         return sorted(root.glob("*/*.profile.json"))
     return sorted(root.glob("*/*.json"))
@@ -150,7 +169,6 @@ def collect_profiler_files(run_dir: Path, profiler: str) -> list[Path]:
 
 def collect_profiler_durations(run_dir: Path, library: str) -> list[ProfilerDuration]:
     durations: dict[tuple[str, str], list[float]] = defaultdict(list)
-
     for profiler in ["cpu", "memory", "line"]:
         for file in collect_profiler_files(run_dir, profiler):
             payload = load_json(file)
@@ -163,8 +181,8 @@ def collect_profiler_durations(run_dir: Path, library: str) -> list[ProfilerDura
     scalene_counts: dict[str, int] = defaultdict(int)
     stage_re = re.compile(r"(step\d+)")
     for file in collect_profiler_files(run_dir, "scalene"):
-        match = stage_re.search(file.name)
-        stage = normalize_stage(match.group(1) if match else "")
+        m = stage_re.search(file.name)
+        stage = normalize_stage(m.group(1) if m else "")
         if stage in STAGES:
             scalene_counts[stage] += 1
 
@@ -172,21 +190,19 @@ def collect_profiler_durations(run_dir: Path, library: str) -> list[ProfilerDura
     for profiler in PROFILERS:
         for stage in STAGES:
             if profiler == "scalene":
-                count = scalene_counts.get(stage, 0)
-                out.append(ProfilerDuration(library, profiler, stage, count, 0.0, 0.0))
-                continue
-
-            vals = durations.get((profiler, stage), [])
-            out.append(
-                ProfilerDuration(
-                    library=library,
-                    profiler=profiler,
-                    stage=stage,
-                    sample_count=len(vals),
-                    mean_duration_ms=mean(vals) if vals else 0.0,
-                    std_duration_ms=pstdev(vals) if len(vals) > 1 else 0.0,
+                out.append(ProfilerDuration(library, profiler, stage, scalene_counts.get(stage, 0), 0.0, 0.0))
+            else:
+                vals = durations.get((profiler, stage), [])
+                out.append(
+                    ProfilerDuration(
+                        library=library,
+                        profiler=profiler,
+                        stage=stage,
+                        sample_count=len(vals),
+                        mean_duration_ms=mean(vals) if vals else 0.0,
+                        std_duration_ms=pstdev(vals) if len(vals) > 1 else 0.0,
+                    )
                 )
-            )
     return out
 
 
@@ -207,17 +223,7 @@ def build_stage_timings_from_cpu(run_dir: Path, library: str) -> list[StageTimin
         if vals:
             totals = [x[0] for x in vals]
             per_repeat = [x[0] / max(1, x[1]) for x in vals]
-            out.append(
-                StageTiming(
-                    library=library,
-                    stage=stage,
-                    sample_count=len(vals),
-                    mean_total_ms=mean(totals),
-                    std_total_ms=pstdev(totals) if len(totals) > 1 else 0.0,
-                    mean_per_repeat_ms=mean(per_repeat),
-                    source_profiler="cpu",
-                )
-            )
+            out.append(StageTiming(library, stage, len(vals), mean(totals), pstdev(totals) if len(totals) > 1 else 0.0, mean(per_repeat), "cpu"))
         else:
             out.append(StageTiming(library, stage, 0, 0.0, 0.0, 0.0, "cpu"))
     return out
@@ -230,8 +236,7 @@ def collect_memory_stats(run_dir: Path, library: str) -> list[MemorySummary]:
         stage = normalize_stage(str(payload.get("step", "")))
         if stage not in STAGES:
             continue
-        peak_bytes = float(payload.get("data", {}).get("peak_memory_bytes", 0))
-        peaks[stage].append(peak_bytes / (1024 * 1024))
+        peaks[stage].append(float(payload.get("data", {}).get("peak_memory_bytes", 0)) / (1024 * 1024))
 
     out: list[MemorySummary] = []
     for stage in STAGES:
@@ -242,20 +247,15 @@ def collect_memory_stats(run_dir: Path, library: str) -> list[MemorySummary]:
 
 def collect_line_bottlenecks(run_dir: Path, library: str, top_n: int, path_mode: str, support_map: dict[str, dict[str, bool]]) -> list[Bottleneck]:
     grouped: dict[tuple[str, str, int], dict[str, Any]] = {}
-
     for file in collect_profiler_files(run_dir, "line"):
         payload = load_json(file)
         stage = normalize_stage(str(payload.get("step", "")))
-        if stage not in STAGES:
+        if stage not in STAGES or not support_map.get(library, {}).get(stage, True):
             continue
-        if not support_map.get(library, {}).get(stage, True):
-            continue
-
         for line_info in payload.get("data", {}).get("top_lines", []):
             rel_path = to_repo_relative(str(line_info.get("filename", "")))
             if not is_allowed_library_path(rel_path, library, path_mode):
                 continue
-
             line = int(line_info.get("line", 0))
             key = (stage, rel_path, line)
             bucket = grouped.setdefault(key, {"total_time_s": 0.0, "hits": 0, "code": str(line_info.get("code", "")).strip()})
@@ -272,11 +272,100 @@ def collect_line_bottlenecks(run_dir: Path, library: str, top_n: int, path_mode:
     return out
 
 
-def speedup_vs_reference(
-    stage_timings: list[StageTiming],
-    reference: str,
+def collect_scalene_stats(
+    run_dir: Path,
+    library: str,
+    top_n: int,
+    path_mode: str,
     support_map: dict[str, dict[str, bool]],
-) -> dict[str, dict[str, float | None]]:
+) -> tuple[list[ScaleneStageSummary], list[ScaleneHotspot]]:
+    stage_re = re.compile(r"(step\d+)")
+    stage_elapsed: dict[str, list[float]] = defaultdict(list)
+    stage_footprint: dict[str, list[float]] = defaultdict(list)
+    stage_filtered_cpu: dict[str, list[float]] = defaultdict(list)
+    grouped_hotspots: dict[tuple[str, str, int], dict[str, Any]] = {}
+
+    for file in collect_profiler_files(run_dir, "scalene"):
+        m = stage_re.search(file.name)
+        stage = normalize_stage(m.group(1) if m else "")
+        if stage not in STAGES or not support_map.get(library, {}).get(stage, True):
+            continue
+
+        payload = load_json(file)
+        stage_elapsed[stage].append(float(payload.get("elapsed_time_sec", 0.0)) * 1000.0)
+        stage_footprint[stage].append(float(payload.get("max_footprint_mb", 0.0)))
+
+        files_map = payload.get("files", {}) if isinstance(payload.get("files", {}), dict) else {}
+        filtered_cpu_percent = 0.0
+
+        for fname, fdata in files_map.items():
+            rel = to_repo_relative(str(fname))
+            if not is_allowed_library_path(rel, library, path_mode):
+                continue
+
+            filtered_cpu_percent += float(fdata.get("percent_cpu_time", 0.0) or 0.0)
+            for ln in fdata.get("lines", []) or []:
+                lineno = int(ln.get("lineno", 0) or 0)
+                if lineno <= 0:
+                    continue
+                cpu_percent = float(ln.get("n_cpu_percent_python", 0.0) or 0.0) + float(ln.get("n_cpu_percent_c", 0.0) or 0.0) + float(ln.get("n_sys_percent", 0.0) or 0.0)
+                if cpu_percent <= 0:
+                    continue
+                key = (stage, rel, lineno)
+                bucket = grouped_hotspots.setdefault(
+                    key,
+                    {
+                        "cpu_percent": 0.0,
+                        "peak_mb": 0.0,
+                        "malloc_mb": 0.0,
+                        "code": str(ln.get("line", "")).strip(),
+                    },
+                )
+                bucket["cpu_percent"] += cpu_percent
+                bucket["peak_mb"] = max(bucket["peak_mb"], float(ln.get("n_peak_mb", 0.0) or 0.0))
+                bucket["malloc_mb"] += float(ln.get("n_malloc_mb", 0.0) or 0.0)
+
+        stage_filtered_cpu[stage].append(filtered_cpu_percent)
+
+    summaries: list[ScaleneStageSummary] = []
+    for stage in STAGES:
+        elapsed = stage_elapsed.get(stage, [])
+        footprint = stage_footprint.get(stage, [])
+        filtered_cpu = stage_filtered_cpu.get(stage, [])
+        summaries.append(
+            ScaleneStageSummary(
+                library=library,
+                stage=stage,
+                sample_count=len(elapsed),
+                mean_elapsed_ms=mean(elapsed) if elapsed else 0.0,
+                mean_max_footprint_mb=mean(footprint) if footprint else 0.0,
+                mean_filtered_cpu_percent=mean(filtered_cpu) if filtered_cpu else 0.0,
+            )
+        )
+
+    by_stage: dict[str, list[ScaleneHotspot]] = defaultdict(list)
+    for (stage, filename, line), vals in grouped_hotspots.items():
+        by_stage[stage].append(
+            ScaleneHotspot(
+                library=library,
+                stage=stage,
+                filename=filename,
+                line=line,
+                code=vals["code"],
+                cpu_percent=vals["cpu_percent"],
+                peak_mb=vals["peak_mb"],
+                malloc_mb=vals["malloc_mb"],
+            )
+        )
+
+    hotspots: list[ScaleneHotspot] = []
+    for stage in STAGES:
+        hotspots.extend(sorted(by_stage.get(stage, []), key=lambda x: x.cpu_percent, reverse=True)[:top_n])
+
+    return summaries, hotspots
+
+
+def speedup_vs_reference(stage_timings: list[StageTiming], reference: str, support_map: dict[str, dict[str, bool]]) -> dict[str, dict[str, float | None]]:
     idx = {(x.library, x.stage): x for x in stage_timings}
     out: dict[str, dict[str, float | None]] = defaultdict(dict)
     libs = sorted({x.library for x in stage_timings})
@@ -294,13 +383,7 @@ def speedup_vs_reference(
     return out
 
 
-
-
-def memory_ratio_vs_reference(
-    memory_stats: list[MemorySummary],
-    reference: str,
-    support_map: dict[str, dict[str, bool]],
-) -> dict[str, dict[str, float | None]]:
+def memory_ratio_vs_reference(memory_stats: list[MemorySummary], reference: str, support_map: dict[str, dict[str, bool]]) -> dict[str, dict[str, float | None]]:
     idx = {(x.library, x.stage): x for x in memory_stats}
     out: dict[str, dict[str, float | None]] = defaultdict(dict)
     libs = sorted({x.library for x in memory_stats})
@@ -317,6 +400,7 @@ def memory_ratio_vs_reference(
                 out[lib][stage] = cur.mean_peak_mb / ref.mean_peak_mb
     return out
 
+
 def write_csv(path: Path, rows: list[dict[str, Any]], headers: list[str]) -> None:
     with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=headers)
@@ -328,9 +412,11 @@ def build_markdown_report(
     reference: str,
     path_mode: str,
     stage_timings: list[StageTiming],
-    profiler_durations: list[ProfilerDuration],
     memory_stats: list[MemorySummary],
-    bottlenecks: list[Bottleneck],
+    line_bottlenecks: list[Bottleneck],
+    scalene_summaries: list[ScaleneStageSummary],
+    scalene_hotspots: list[ScaleneHotspot],
+    profiler_durations: list[ProfilerDuration],
     speedups: dict[str, dict[str, float | None]],
     memory_ratios: dict[str, dict[str, float | None]],
     support_map: dict[str, dict[str, bool]],
@@ -344,15 +430,10 @@ def build_markdown_report(
         f"Support source: `{support_source}`" if support_source else "Support source: `not_found` (all stages treated as supported)",
         "",
     ]
-
     libs = sorted({x.library for x in stage_timings})
 
-    lines += ["## 1) Stage support matrix", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---|---|---|---|"]
-    for lib in libs:
-        vals = ["supported" if support_map.get(lib, {}).get(stage, True) else "not_supported" for stage in STAGES]
-        lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
-
-    lines += ["", "## 2) Stage timings from CPU profiler metadata (mean per repeat, ms)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    # CPU
+    lines += ["## CPU", "", "### Stage timings from CPU profiler metadata (mean per repeat, ms)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -363,7 +444,7 @@ def build_markdown_report(
             vals.append("n/a" if rec is None or rec.sample_count == 0 else f"{rec.mean_per_repeat_ms:.2f}")
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "## 3) Relative speedup vs reference (reference_time / lib_time)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    lines += ["", "### Relative speedup vs reference (reference_time / lib_time)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -374,7 +455,8 @@ def build_markdown_report(
                 vals.append("n/a" if sp is None else f"{sp:.2f}x")
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "## 4) Peak memory by stage (MB)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    # Memory
+    lines += ["", "## Memory", "", "### Peak memory by stage (MB)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -385,7 +467,7 @@ def build_markdown_report(
             vals.append("n/a" if rec is None or rec.sample_count == 0 else f"{rec.mean_peak_mb:.2f}")
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "## 5) Relative memory vs reference (lib_peak / ref_peak)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    lines += ["", "### Relative memory vs reference (lib_peak / ref_peak)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -396,24 +478,36 @@ def build_markdown_report(
                 vals.append("n/a" if ratio is None else f"{ratio:.2f}x")
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "## 6) Peak memory by stage (MB, detailed)", "", "| Library | Stage | Support | Mean peak | Max peak | Samples |", "|---|---|---|---:|---:|---:|"]
-    for rec in sorted(memory_stats, key=lambda x: (x.library, x.stage)):
-        sup = "supported" if support_map.get(rec.library, {}).get(rec.stage, True) else "not_supported"
-        if rec.sample_count == 0:
-            lines.append(f"| {rec.library} | {rec.stage} | {sup} | n/a | n/a | 0 |")
-        else:
-            lines.append(f"| {rec.library} | {rec.stage} | {sup} | {rec.mean_peak_mb:.2f} | {rec.max_peak_mb:.2f} | {rec.sample_count} |")
-
-    lines += ["", "## 7) Bottlenecks from line profiler (filtered, supported stages only)", "", "| Library | Stage | File:Line | Total time (s) | Hits | Code |", "|---|---|---|---:|---:|---|"]
-    for b in sorted(bottlenecks, key=lambda x: (x.library, x.stage, -x.total_time_s)):
-        code = b.code.replace("|", "\\|")
+    # Line
+    lines += ["", "## Line", "", "### Bottlenecks from line profiler (filtered, supported stages only)", "", "| Library | Stage | File:Line | Total time (s) | Hits | Code |", "|---|---|---|---:|---:|---|"]
+    for b in sorted(line_bottlenecks, key=lambda x: (x.library, x.stage, -x.total_time_s)):
+        code = b.code.replace('|', '\\|')
         lines.append(f"| {b.library} | {b.stage} | `{b.filename}:{b.line}` | {b.total_time_s:.4f} | {b.hits} | `{code}` |")
 
-    lines += ["", "## 8) Profiler duration coverage (profiling overhead)", "", "| Library | Profiler | Stage | Support | Samples | Mean duration (ms) | Std (ms) |", "|---|---|---|---|---:|---:|---:|"]
+    # Scalene
+    lines += ["", "## Scalene", "", "### Stage summary (filtered library files)", "", "| Library | Stage | Samples | Mean elapsed (ms) | Mean max footprint (MB) | Mean filtered CPU % |", "|---|---|---:|---:|---:|---:|"]
+    for rec in sorted(scalene_summaries, key=lambda x: (x.library, x.stage)):
+        sup = support_map.get(rec.library, {}).get(rec.stage, True)
+        if not sup:
+            lines.append(f"| {rec.library} | {rec.stage} | n/s | n/s | n/s | n/s |")
+        else:
+            lines.append(f"| {rec.library} | {rec.stage} | {rec.sample_count} | {rec.mean_elapsed_ms:.2f} | {rec.mean_max_footprint_mb:.2f} | {rec.mean_filtered_cpu_percent:.2f} |")
+
+    lines += ["", "### Top hotspots by CPU % (filtered library files)", "", "| Library | Stage | File:Line | CPU % | Peak MB | Malloc MB | Code |", "|---|---|---|---:|---:|---:|---|"]
+    for h in sorted(scalene_hotspots, key=lambda x: (x.library, x.stage, -x.cpu_percent)):
+        code = h.code.replace('|', '\\|')
+        lines.append(f"| {h.library} | {h.stage} | `{h.filename}:{h.line}` | {h.cpu_percent:.2f} | {h.peak_mb:.2f} | {h.malloc_mb:.2f} | `{code}` |")
+
+    # Coverage / harness overhead
+    lines += ["", "## Coverage", "", "### Stage support matrix", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---|---|---|---|"]
+    for lib in libs:
+        vals = ["supported" if support_map.get(lib, {}).get(stage, True) else "not_supported" for stage in STAGES]
+        lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
+
+    lines += ["", "### Profiler duration coverage (profiling overhead)", "", "| Library | Profiler | Stage | Support | Samples | Mean duration (ms) | Std (ms) |", "|---|---|---|---|---:|---:|---:|"]
     for rec in sorted(profiler_durations, key=lambda x: (x.library, x.profiler, x.stage)):
         sup = "supported" if support_map.get(rec.library, {}).get(rec.stage, True) else "not_supported"
         lines.append(f"| {rec.library} | {rec.profiler} | {rec.stage} | {sup} | {rec.sample_count} | {rec.mean_duration_ms:.2f} | {rec.std_duration_ms:.2f} |")
-
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -448,7 +542,9 @@ def main() -> int:
     all_stage_timings: list[StageTiming] = []
     all_profiler_durations: list[ProfilerDuration] = []
     all_memory: list[MemorySummary] = []
-    all_bottlenecks: list[Bottleneck] = []
+    all_line_bottlenecks: list[Bottleneck] = []
+    all_scalene_summaries: list[ScaleneStageSummary] = []
+    all_scalene_hotspots: list[ScaleneHotspot] = []
     run_paths: dict[str, str] = {}
 
     for lib in libraries:
@@ -457,15 +553,10 @@ def main() -> int:
         all_stage_timings.extend(build_stage_timings_from_cpu(run_dir, lib))
         all_profiler_durations.extend(collect_profiler_durations(run_dir, lib))
         all_memory.extend(collect_memory_stats(run_dir, lib))
-        all_bottlenecks.extend(
-            collect_line_bottlenecks(
-                run_dir,
-                lib,
-                top_n=args.top_lines,
-                path_mode=args.path_filter,
-                support_map=support_map,
-            )
-        )
+        all_line_bottlenecks.extend(collect_line_bottlenecks(run_dir, lib, top_n=args.top_lines, path_mode=args.path_filter, support_map=support_map))
+        s_summary, s_hotspots = collect_scalene_stats(run_dir, lib, top_n=args.top_lines, path_mode=args.path_filter, support_map=support_map)
+        all_scalene_summaries.extend(s_summary)
+        all_scalene_hotspots.extend(s_hotspots)
 
     speedups = speedup_vs_reference(all_stage_timings, args.reference, support_map)
     memory_ratios = memory_ratio_vs_reference(all_memory, args.reference, support_map)
@@ -511,7 +602,7 @@ def main() -> int:
         }
         for x in sorted(all_memory, key=lambda i: (i.library, i.stage))
     ]
-    bottleneck_rows = [
+    line_rows = [
         {
             "library": x.library,
             "stage": x.stage,
@@ -522,29 +613,50 @@ def main() -> int:
             "hits": x.hits,
             "code": x.code,
         }
-        for x in sorted(all_bottlenecks, key=lambda i: (i.library, i.stage, -i.total_time_s))
+        for x in sorted(all_line_bottlenecks, key=lambda i: (i.library, i.stage, -i.total_time_s))
+    ]
+    scalene_summary_rows = [
+        {
+            "library": x.library,
+            "stage": x.stage,
+            "supported": support_map.get(x.library, {}).get(x.stage, True),
+            "sample_count": x.sample_count,
+            "mean_elapsed_ms": round(x.mean_elapsed_ms, 6),
+            "mean_max_footprint_mb": round(x.mean_max_footprint_mb, 6),
+            "mean_filtered_cpu_percent": round(x.mean_filtered_cpu_percent, 6),
+        }
+        for x in sorted(all_scalene_summaries, key=lambda i: (i.library, i.stage))
+    ]
+    scalene_hotspot_rows = [
+        {
+            "library": x.library,
+            "stage": x.stage,
+            "filename": x.filename,
+            "line": x.line,
+            "cpu_percent": round(x.cpu_percent, 6),
+            "peak_mb": round(x.peak_mb, 6),
+            "malloc_mb": round(x.malloc_mb, 6),
+            "code": x.code,
+        }
+        for x in sorted(all_scalene_hotspots, key=lambda i: (i.library, i.stage, -i.cpu_percent))
     ]
 
-    write_csv(
-        out_dir / "stage_timings.csv",
-        timings_rows,
-        ["library", "stage", "supported", "sample_count", "mean_total_ms", "std_total_ms", "mean_per_repeat_ms", "source_profiler", "speedup_vs_reference"],
-    )
-    write_csv(
-        out_dir / "profiler_durations.csv",
-        duration_rows,
-        ["library", "profiler", "stage", "supported", "sample_count", "mean_duration_ms", "std_duration_ms"],
-    )
+    write_csv(out_dir / "stage_timings.csv", timings_rows, ["library", "stage", "supported", "sample_count", "mean_total_ms", "std_total_ms", "mean_per_repeat_ms", "source_profiler", "speedup_vs_reference"])
+    write_csv(out_dir / "profiler_durations.csv", duration_rows, ["library", "profiler", "stage", "supported", "sample_count", "mean_duration_ms", "std_duration_ms"])
     write_csv(out_dir / "memory_stage_summary.csv", memory_rows, ["library", "stage", "supported", "sample_count", "mean_peak_mb", "max_peak_mb", "memory_ratio_vs_reference"])
-    write_csv(out_dir / "line_bottlenecks.csv", bottleneck_rows, ["library", "stage", "profiler", "filename", "line", "total_time_s", "hits", "code"])
+    write_csv(out_dir / "line_bottlenecks.csv", line_rows, ["library", "stage", "profiler", "filename", "line", "total_time_s", "hits", "code"])
+    write_csv(out_dir / "scalene_stage_summary.csv", scalene_summary_rows, ["library", "stage", "supported", "sample_count", "mean_elapsed_ms", "mean_max_footprint_mb", "mean_filtered_cpu_percent"])
+    write_csv(out_dir / "scalene_hotspots.csv", scalene_hotspot_rows, ["library", "stage", "filename", "line", "cpu_percent", "peak_mb", "malloc_mb", "code"])
 
     report_md = build_markdown_report(
         reference=args.reference,
         path_mode=args.path_filter,
         stage_timings=all_stage_timings,
-        profiler_durations=all_profiler_durations,
         memory_stats=all_memory,
-        bottlenecks=all_bottlenecks,
+        line_bottlenecks=all_line_bottlenecks,
+        scalene_summaries=all_scalene_summaries,
+        scalene_hotspots=all_scalene_hotspots,
+        profiler_durations=all_profiler_durations,
         speedups=speedups,
         memory_ratios=memory_ratios,
         support_map=support_map,
@@ -565,10 +677,12 @@ def main() -> int:
         },
         "stage_support": support_map,
         "stage_timings": timings_rows,
+        "memory_ratio_vs_reference": memory_ratios,
         "profiler_durations": duration_rows,
         "memory_summary": memory_rows,
-        "memory_ratio_vs_reference": memory_ratios,
-        "line_bottlenecks": bottleneck_rows,
+        "line_bottlenecks": line_rows,
+        "scalene_stage_summary": scalene_summary_rows,
+        "scalene_hotspots": scalene_hotspot_rows,
     }
     (out_dir / "analysis_report.json").write_text(json.dumps(report_json, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -579,6 +693,8 @@ def main() -> int:
     print(f" - {out_dir / 'profiler_durations.csv'}")
     print(f" - {out_dir / 'memory_stage_summary.csv'}")
     print(f" - {out_dir / 'line_bottlenecks.csv'}")
+    print(f" - {out_dir / 'scalene_stage_summary.csv'}")
+    print(f" - {out_dir / 'scalene_hotspots.csv'}")
     return 0
 
 
