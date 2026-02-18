@@ -87,3 +87,63 @@ python scripts/processing/compare_profiling_results.py \
   --identical-threshold 1e-12 \
   --show-top-diffs 3
 ```
+
+
+#### `analyze_profiling_postprocessing.py`
+
+Aggregates profiling metrics from the latest run of each library and prepares artifacts for research postprocessing.
+
+**What it does:**
+- Reads latest `run_summary.json` for each selected library.
+- Collects per-stage timing metrics (`mean_per_repeat_ms`, `std`, `success_rate`, support coverage).
+- Collects per-stage memory peaks from `profilers/memory/*/*.json`.
+- Extracts top bottleneck lines from line profiler outputs.
+- Computes relative speedup vs reference library.
+- Produces CSV/JSON/Markdown artifacts for analysis and plotting.
+
+**Outputs:**
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/analysis_report.md`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/analysis_report.json`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/stage_timings.csv`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/memory_stage_summary.csv`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/line_bottlenecks.csv`
+
+**Typical usage:**
+
+```bash
+python scripts/processing/analyze_profiling_postprocessing.py \
+  --reference our \
+  --libraries all \
+  --top-lines 5
+```
+
+
+---
+
+#### `analyze_profiling_postprocessing.py`
+
+Агрегирует профилировочные метрики из последних прогонов библиотек и подготавливает артефакты для исследовательского постпроцессинга.
+
+**Что делает скрипт:**
+- Читает последний `run_summary.json` по каждой выбранной библиотеке.
+- Собирает метрики времени по этапам (`mean_per_repeat_ms`, `std`, `success_rate`, покрытие поддержки этапов).
+- Собирает пики памяти по этапам из `profilers/memory/*/*.json`.
+- Извлекает узкие места (top lines) из line profiler.
+- Считает относительное ускорение относительно эталонной библиотеки.
+- Формирует CSV/JSON/Markdown артефакты для графиков и аналитики.
+
+**Артефакты на выходе:**
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/analysis_report.md`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/analysis_report.json`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/stage_timings.csv`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/memory_stage_summary.csv`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/line_bottlenecks.csv`
+
+**Пример запуска:**
+
+```bash
+python scripts/processing/analyze_profiling_postprocessing.py \
+  --reference our \
+  --libraries all \
+  --top-lines 5
+```
