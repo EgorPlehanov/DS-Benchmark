@@ -26,6 +26,7 @@ class StageTiming:
     mean_total_ms: float
     std_total_ms: float
     mean_per_repeat_ms: float
+    mean_step_repeat_count: float
     source_profiler: str
 
 
@@ -88,6 +89,86 @@ def normalize_stage(raw_stage: str) -> str:
     return raw_stage.split("_", 1)[0]
 
 
+def flatten_numeric(data: Any, prefix: str = "") -> dict[str, float]:
+    """Плоское представление только числовых полей вложенной структуры."""
+    flat: dict[str, float] = {}
+    if isinstance(data, dict):
+        for key, value in data.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            flat.update(flatten_numeric(value, path))
+    elif isinstance(data, list):
+        for index, value in enumerate(data):
+            path = f"{prefix}[{index}]" if prefix else f"[{index}]"
+            flat.update(flatten_numeric(value, path))
+    elif isinstance(data, (int, float)) and not isinstance(data, bool):
+        flat[prefix] = float(data)
+    return flat
+
+
+def latest_run_with_results(base_dir: Path, library: str) -> Path | None:
+    lib_dir = base_dir / library
+    if not lib_dir.exists():
+        return None
+    timestamps = sorted([p for p in lib_dir.iterdir() if p.is_dir()])
+    for run_dir in reversed(timestamps):
+        test_dir = run_dir / "test_results"
+        if test_dir.exists() and any(test_dir.glob("*_results.json")):
+            return run_dir
+    return None
+
+
+def build_supported_map_from_test_results(base_dir: Path, reference: str, libraries: list[str]) -> tuple[dict[str, dict[str, bool]], str | None]:
+    support = {lib: {stage: True for stage in STAGES} for lib in libraries}
+
+    ref_run = latest_run_with_results(base_dir, reference)
+    if ref_run is None:
+        return support, None
+
+    ref_test_dir = ref_run / "test_results"
+    ref_files = sorted(ref_test_dir.glob("*_results.json"))
+    if not ref_files:
+        return support, None
+
+    for lib in libraries:
+        if lib != reference:
+            for stage in STAGES:
+                support[lib][stage] = False
+
+    runs_by_lib = {lib: latest_run_with_results(base_dir, lib) for lib in libraries if lib != reference}
+
+    for ref_file in ref_files:
+        test_name = ref_file.name
+        ref_payload = load_json(ref_file)
+        ref_results = ref_payload.get("results", {}) if isinstance(ref_payload.get("results", {}), dict) else {}
+
+        for lib in libraries:
+            if lib == reference:
+                continue
+            lib_run = runs_by_lib.get(lib)
+            if lib_run is None:
+                continue
+            tgt_file = lib_run / "test_results" / test_name
+            if not tgt_file.exists():
+                continue
+            tgt_payload = load_json(tgt_file)
+            tgt_results = tgt_payload.get("results", {}) if isinstance(tgt_payload.get("results", {}), dict) else {}
+
+            for stage in STAGES:
+                ref_stage = ref_results.get(stage)
+                tgt_stage = tgt_results.get(stage)
+                if ref_stage is None or tgt_stage is None:
+                    continue
+                ref_flat = flatten_numeric(ref_stage)
+                tgt_flat = flatten_numeric(tgt_stage)
+                if not ref_flat:
+                    continue
+                if set(ref_flat).intersection(tgt_flat):
+                    support[lib][stage] = True
+
+    source = f"derived_from_test_results:{ref_run}"
+    return support, source
+
+
 def discover_libraries(base_dir: Path) -> list[str]:
     return sorted([p.name for p in base_dir.iterdir() if p.is_dir() and p.name != "processed_results"])
 
@@ -97,18 +178,16 @@ def latest_run_dir(base_dir: Path, library: str) -> Path:
     timestamps = sorted([p for p in lib_dir.iterdir() if p.is_dir()])
     if not timestamps:
         raise FileNotFoundError(f"Не найдено прогонов для библиотеки: {library}")
+    for run_dir in reversed(timestamps):
+        cpu_files = collect_profiler_files(run_dir, "cpu")
+        if not cpu_files:
+            continue
+        for file in cpu_files:
+            payload = load_json(file)
+            stage = normalize_stage(str(payload.get("step", "")))
+            if stage in STAGES:
+                return run_dir
     return timestamps[-1]
-
-
-def latest_comparison_report(base_dir: Path) -> Path | None:
-    root = base_dir / "processed_results" / "comparison_report"
-    if not root.exists():
-        return None
-    runs = sorted([p for p in root.iterdir() if p.is_dir()])
-    if not runs:
-        return None
-    candidate = runs[-1] / "comparison_report.json"
-    return candidate if candidate.exists() else None
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -117,27 +196,8 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def build_supported_map(base_dir: Path, reference: str, libraries: list[str]) -> tuple[dict[str, dict[str, bool]], str | None]:
-    support = {lib: {stage: True for stage in STAGES} for lib in libraries}
-    support_source: str | None = None
-
-    report_path = latest_comparison_report(base_dir)
-    if report_path is None:
-        return support, support_source
-
-    payload = load_json(report_path)
-    global_by_stage = payload.get("summary", {}).get("global", {}).get("by_stage", {})
-
-    for lib in libraries:
-        if lib == reference:
-            continue
-        lib_stage = global_by_stage.get(lib, {})
-        for stage in STAGES:
-            compared_values = int(lib_stage.get(stage, {}).get("compared_values", 0))
-            total_reference = int(lib_stage.get(stage, {}).get("total_reference_values", 0))
-            support[lib][stage] = compared_values > 0 and total_reference > 0
-
-    support_source = str(report_path)
-    return support, support_source
+    # Support-map must be fully self-contained and not depend on other reports.
+    return build_supported_map_from_test_results(base_dir, reference, libraries)
 
 
 def to_repo_relative(path_str: str) -> str:
@@ -222,10 +282,22 @@ def build_stage_timings_from_cpu(run_dir: Path, library: str) -> list[StageTimin
         vals = stage_values.get(stage, [])
         if vals:
             totals = [x[0] for x in vals]
-            per_repeat = [x[0] / max(1, x[1]) for x in vals]
-            out.append(StageTiming(library, stage, len(vals), mean(totals), pstdev(totals) if len(totals) > 1 else 0.0, mean(per_repeat), "cpu"))
+            repeats = [max(1, x[1]) for x in vals]
+            per_repeat = [x[0] / rep for x, rep in zip(vals, repeats)]
+            out.append(
+                StageTiming(
+                    library,
+                    stage,
+                    len(vals),
+                    mean(totals),
+                    pstdev(totals) if len(totals) > 1 else 0.0,
+                    mean(per_repeat),
+                    mean(repeats),
+                    "cpu",
+                )
+            )
         else:
-            out.append(StageTiming(library, stage, 0, 0.0, 0.0, 0.0, "cpu"))
+            out.append(StageTiming(library, stage, 0, 0.0, 0.0, 0.0, 0.0, "cpu"))
     return out
 
 
@@ -421,9 +493,11 @@ def build_markdown_report(
     memory_ratios: dict[str, dict[str, float | None]],
     support_map: dict[str, dict[str, bool]],
     support_source: str | None,
+    include_scalene: bool,
 ) -> str:
     lines: list[str] = [
         "# Postprocessing analysis of profiling runs",
+        "_Постобработка результатов профилирования_",
         "",
         f"Reference library: `{reference}`",
         f"Path filter mode: `{path_mode}`",
@@ -433,7 +507,7 @@ def build_markdown_report(
     libs = sorted({x.library for x in stage_timings})
 
     # CPU
-    lines += ["## CPU", "", "### Stage timings from CPU profiler metadata (mean per repeat, ms)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    lines += ["## CPU", "_Процессорное время (CPU)_", "", "### Stage timings from CPU profiler metadata (mean per repeat, ms)", "_Тайминги этапов из метаданных CPU-профайлера (среднее на повтор, мс)_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -444,7 +518,18 @@ def build_markdown_report(
             vals.append("n/a" if rec is None or rec.sample_count == 0 else f"{rec.mean_per_repeat_ms:.2f}")
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "### Relative speedup vs reference (reference_time / lib_time)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    lines += ["", "### Mean step repeat count captured from CPU metadata", "_Среднее число повторов этапа из метаданных CPU_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    for lib in libs:
+        vals = []
+        for stage in STAGES:
+            if not support_map.get(lib, {}).get(stage, True):
+                vals.append("n/s")
+                continue
+            rec = next((x for x in stage_timings if x.library == lib and x.stage == stage), None)
+            vals.append("n/a" if rec is None or rec.sample_count == 0 else f"{rec.mean_step_repeat_count:.2f}")
+        lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
+
+    lines += ["", "### Relative speedup vs reference (reference_time / lib_time)", "_Относительное ускорение относительно эталона (time_ref / time_lib)_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -456,7 +541,7 @@ def build_markdown_report(
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
     # Memory
-    lines += ["", "## Memory", "", "### Peak memory by stage (MB)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    lines += ["", "## Memory", "_Память_", "", "### Peak memory by stage (MB)", "_Пиковое потребление памяти по этапам (МБ)_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -467,7 +552,7 @@ def build_markdown_report(
             vals.append("n/a" if rec is None or rec.sample_count == 0 else f"{rec.mean_peak_mb:.2f}")
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "### Relative memory vs reference (lib_peak / ref_peak)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    lines += ["", "### Relative memory vs reference (lib_peak / ref_peak)", "_Относительная память относительно эталона (peak_lib / peak_ref)_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
     for lib in libs:
         vals = []
         for stage in STAGES:
@@ -479,34 +564,36 @@ def build_markdown_report(
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
     # Line
-    lines += ["", "## Line", "", "### Bottlenecks from line profiler (filtered, supported stages only)", "", "| Library | Stage | File:Line | Total time (s) | Hits | Code |", "|---|---|---|---:|---:|---|"]
+    lines += ["", "## Line", "_Построчный профиль (line profiler)_", "", "### Bottlenecks from line profiler (filtered, supported stages only)", "_Узкие места из line profiler (после фильтрации, только поддерживаемые этапы)_", "", "| Library | Stage | File:Line | Total time (s) | Hits | Code |", "|---|---|---|---:|---:|---|"]
     for b in sorted(line_bottlenecks, key=lambda x: (x.library, x.stage, -x.total_time_s)):
         code = b.code.replace('|', '\\|')
         lines.append(f"| {b.library} | {b.stage} | `{b.filename}:{b.line}` | {b.total_time_s:.4f} | {b.hits} | `{code}` |")
 
     # Scalene
-    lines += ["", "## Scalene", "", "### Stage summary (filtered library files)", "", "| Library | Stage | Samples | Mean elapsed (ms) | Mean max footprint (MB) | Mean filtered CPU % |", "|---|---|---:|---:|---:|---:|"]
-    for rec in sorted(scalene_summaries, key=lambda x: (x.library, x.stage)):
-        sup = support_map.get(rec.library, {}).get(rec.stage, True)
-        if not sup:
-            lines.append(f"| {rec.library} | {rec.stage} | n/s | n/s | n/s | n/s |")
-        else:
-            lines.append(f"| {rec.library} | {rec.stage} | {rec.sample_count} | {rec.mean_elapsed_ms:.2f} | {rec.mean_max_footprint_mb:.2f} | {rec.mean_filtered_cpu_percent:.2f} |")
+    if include_scalene:
+        lines += ["", "## Scalene", "_Scalene-профайлер_", "", "### Stage summary (filtered library files)", "_Сводка по этапам (фильтр по файлам библиотеки)_", "", "| Library | Stage | Samples | Mean elapsed (ms) | Mean max footprint (MB) | Mean filtered CPU % |", "|---|---|---:|---:|---:|---:|"]
+        for rec in sorted(scalene_summaries, key=lambda x: (x.library, x.stage)):
+            sup = support_map.get(rec.library, {}).get(rec.stage, True)
+            if not sup:
+                lines.append(f"| {rec.library} | {rec.stage} | n/s | n/s | n/s | n/s |")
+            else:
+                lines.append(f"| {rec.library} | {rec.stage} | {rec.sample_count} | {rec.mean_elapsed_ms:.2f} | {rec.mean_max_footprint_mb:.2f} | {rec.mean_filtered_cpu_percent:.2f} |")
 
-    lines += ["", "### Top hotspots by CPU % (filtered library files)", "", "| Library | Stage | File:Line | CPU % | Peak MB | Malloc MB | Code |", "|---|---|---|---:|---:|---:|---|"]
-    for h in sorted(scalene_hotspots, key=lambda x: (x.library, x.stage, -x.cpu_percent)):
-        code = h.code.replace('|', '\\|')
-        lines.append(f"| {h.library} | {h.stage} | `{h.filename}:{h.line}` | {h.cpu_percent:.2f} | {h.peak_mb:.2f} | {h.malloc_mb:.2f} | `{code}` |")
+        lines += ["", "### Top hotspots by CPU % (filtered library files)", "_Топ горячих строк по CPU % (с фильтром по файлам библиотеки)_", "", "| Library | Stage | File:Line | CPU % | Peak MB | Malloc MB | Code |", "|---|---|---|---:|---:|---:|---|"]
+        for h in sorted(scalene_hotspots, key=lambda x: (x.library, x.stage, -x.cpu_percent)):
+            code = h.code.replace('|', '\\|')
+            lines.append(f"| {h.library} | {h.stage} | `{h.filename}:{h.line}` | {h.cpu_percent:.2f} | {h.peak_mb:.2f} | {h.malloc_mb:.2f} | `{code}` |")
 
     # Coverage / harness overhead
-    lines += ["", "## Coverage", "", "### Stage support matrix", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---|---|---|---|"]
+    lines += ["", "## Coverage", "_Покрытие и валидность сравнений_", "", "### Stage support matrix", "_Матрица поддержки этапов_", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---|---|---|---|"]
     for lib in libs:
         vals = ["supported" if support_map.get(lib, {}).get(stage, True) else "not_supported" for stage in STAGES]
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "### Profiler duration coverage (profiling overhead)", "", "| Library | Profiler | Stage | Support | Samples | Mean duration (ms) | Std (ms) |", "|---|---|---|---|---:|---:|---:|"]
+    lines += ["", "### Profiler duration coverage (profiling overhead)", "_Покрытие длительностей профайлеров (накладные расходы профилирования)_", "", "| Library | Profiler | Stage | Support | Samples | Mean duration (ms) | Std (ms) |", "|---|---|---|---|---:|---:|---:|"]
     for rec in sorted(profiler_durations, key=lambda x: (x.library, x.profiler, x.stage)):
-        sup = "supported" if support_map.get(rec.library, {}).get(rec.stage, True) else "not_supported"
+        supported = support_map.get(rec.library, {}).get(rec.stage, True)
+        sup = "supported" if supported else "not_supported (instrumentation only / excluded from comparison)"
         lines.append(f"| {rec.library} | {rec.profiler} | {rec.stage} | {sup} | {rec.sample_count} | {rec.mean_duration_ms:.2f} | {rec.std_duration_ms:.2f} |")
 
     return "\n".join(lines).rstrip() + "\n"
@@ -523,6 +610,12 @@ def main() -> int:
         choices=["library_only", "all"],
         default="library_only",
         help="library_only: our->src/core/*, others->external/*; all: без фильтра путей",
+    )
+    parser.add_argument(
+        "--include-scalene",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Включать секцию Scalene в markdown-отчет (по умолчанию: включена)",
     )
     args = parser.parse_args()
 
@@ -573,6 +666,7 @@ def main() -> int:
                 "mean_total_ms": round(x.mean_total_ms, 6),
                 "std_total_ms": round(x.std_total_ms, 6),
                 "mean_per_repeat_ms": round(x.mean_per_repeat_ms, 6),
+                "mean_step_repeat_count": round(x.mean_step_repeat_count, 6),
                 "source_profiler": x.source_profiler,
                 "speedup_vs_reference": None if (not supported or speedups[x.library][x.stage] is None) else round(float(speedups[x.library][x.stage]), 6),
             }
@@ -641,7 +735,22 @@ def main() -> int:
         for x in sorted(all_scalene_hotspots, key=lambda i: (i.library, i.stage, -i.cpu_percent))
     ]
 
-    write_csv(out_dir / "stage_timings.csv", timings_rows, ["library", "stage", "supported", "sample_count", "mean_total_ms", "std_total_ms", "mean_per_repeat_ms", "source_profiler", "speedup_vs_reference"])
+    write_csv(
+        out_dir / "stage_timings.csv",
+        timings_rows,
+        [
+            "library",
+            "stage",
+            "supported",
+            "sample_count",
+            "mean_total_ms",
+            "std_total_ms",
+            "mean_per_repeat_ms",
+            "mean_step_repeat_count",
+            "source_profiler",
+            "speedup_vs_reference",
+        ],
+    )
     write_csv(out_dir / "profiler_durations.csv", duration_rows, ["library", "profiler", "stage", "supported", "sample_count", "mean_duration_ms", "std_duration_ms"])
     write_csv(out_dir / "memory_stage_summary.csv", memory_rows, ["library", "stage", "supported", "sample_count", "mean_peak_mb", "max_peak_mb", "memory_ratio_vs_reference"])
     write_csv(out_dir / "line_bottlenecks.csv", line_rows, ["library", "stage", "profiler", "filename", "line", "total_time_s", "hits", "code"])
@@ -661,6 +770,7 @@ def main() -> int:
         memory_ratios=memory_ratios,
         support_map=support_map,
         support_source=support_source,
+        include_scalene=args.include_scalene,
     )
     (out_dir / "analysis_report.md").write_text(report_md, encoding="utf-8")
 
