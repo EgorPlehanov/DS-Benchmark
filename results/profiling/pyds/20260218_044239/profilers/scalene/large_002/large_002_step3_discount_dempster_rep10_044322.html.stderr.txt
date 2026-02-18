@@ -1,0 +1,24 @@
+SciPy not found: some features will not work.
+Traceback (most recent call last):
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\venv\Lib\site-packages\scalene\scalene_profiler.py", line 1894, in profile_code
+    exec(code, the_globals, the_locals)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\results\profiling\pyds\20260218_044239\profilers\scalene\tmp\scalene_large_002_step3_discount_dempster_rep10_044322.py", line 82, in <module>
+    main()
+    ~~~~^^
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\results\profiling\pyds\20260218_044239\profilers\scalene\tmp\scalene_large_002_step3_discount_dempster_rep10_044322.py", line 76, in main
+    run_step(runner, adapter, args.step, loaded_data, args.alpha)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\results\profiling\pyds\20260218_044239\profilers\scalene\tmp\scalene_large_002_step3_discount_dempster_rep10_044322.py", line 56, in run_step
+    run_step3(runner, adapter, data, alpha)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\results\profiling\pyds\20260218_044239\profilers\scalene\tmp\scalene_large_002_step3_discount_dempster_rep10_044322.py", line 41, in run_step3
+    runner._execute_step3(data, alphas)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\src\runners\universal_runner.py", line 302, in _execute_step3
+    discounted_list = self.adapter.apply_discounting(source_data, alpha)
+  File "D:\PROG\POLITEH\DS-Theory\DS-Benchmark\src\adapters\pyds_adapter.py", line 84, in apply_discounting
+    raise NotImplementedError(
+    ...<2 lines>...
+    )
+NotImplementedError: В py_dempster_shafer/pyds отсутствует встроенный метод discounting. Для честного сравнения адаптер не реализует дисконтирование самостоятельно.
