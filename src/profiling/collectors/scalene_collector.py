@@ -71,7 +71,7 @@ class ScaleneCollector:
             "scalene",
             "run",
             "-o",
-            str(profile_json_path),
+            str(profile_json_path.resolve()),
             "--memory",
             "--profile-all",
         ]
@@ -79,7 +79,7 @@ class ScaleneCollector:
         if profile_only_filters:
             args.extend(["--profile-only", ",".join(profile_only_filters)])
 
-        args.append(str(script_path))
+        args.append(str(script_path.resolve()))
         if script_args:
             args.extend(script_args)
 
@@ -92,7 +92,7 @@ class ScaleneCollector:
             "scalene",
             "view",
             "--html",
-            str(profile_json_path),
+            str(profile_json_path.resolve()),
         ]
 
     def _capture_scalene_profile_json(self, test_output_dir: Path, profile_json_path: Path) -> Optional[str]:
@@ -263,7 +263,7 @@ class ScaleneCollector:
                 script_args=[
                     "--adapter", adapter_name,
                     "--step", step_name,
-                    "--input", str(input_path),
+                    "--input", str(Path(input_path).resolve()),
                     "--alpha", str(alpha),
                     "--repeat", str(repeat),
                 ],
