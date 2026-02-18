@@ -350,7 +350,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
         iterations интерпретируется как количество повторов каждого шага
         внутри одного прогона теста.
         """
-        print(f"\n🧪 Тест: {test_name}")
         step_repeat_count = max(1, iterations)
         
         test_results = {

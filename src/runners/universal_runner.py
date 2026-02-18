@@ -814,6 +814,7 @@ class UniversalBenchmarkRunner:
         self._create_final_text_report(run_summary)
 
         print("\n✅ Выполнение набора тестов завершено")
+        print()
         print(f"📊 Сводка JSON: {self.run_dir}/run_summary.json")
         print(f"📄 Сводка TXT: {self.run_dir}/logs/final_report.txt")
         return run_summary
