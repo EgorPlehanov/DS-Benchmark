@@ -294,6 +294,29 @@ def speedup_vs_reference(
     return out
 
 
+
+
+def memory_ratio_vs_reference(
+    memory_stats: list[MemorySummary],
+    reference: str,
+    support_map: dict[str, dict[str, bool]],
+) -> dict[str, dict[str, float | None]]:
+    idx = {(x.library, x.stage): x for x in memory_stats}
+    out: dict[str, dict[str, float | None]] = defaultdict(dict)
+    libs = sorted({x.library for x in memory_stats})
+    for lib in libs:
+        for stage in STAGES:
+            if not support_map.get(lib, {}).get(stage, True):
+                out[lib][stage] = None
+                continue
+            cur = idx.get((lib, stage))
+            ref = idx.get((reference, stage))
+            if not cur or not ref or cur.sample_count == 0 or ref.sample_count == 0 or ref.mean_peak_mb == 0:
+                out[lib][stage] = None
+            else:
+                out[lib][stage] = cur.mean_peak_mb / ref.mean_peak_mb
+    return out
+
 def write_csv(path: Path, rows: list[dict[str, Any]], headers: list[str]) -> None:
     with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=headers)
@@ -309,6 +332,7 @@ def build_markdown_report(
     memory_stats: list[MemorySummary],
     bottlenecks: list[Bottleneck],
     speedups: dict[str, dict[str, float | None]],
+    memory_ratios: dict[str, dict[str, float | None]],
     support_map: dict[str, dict[str, bool]],
     support_source: str | None,
 ) -> str:
@@ -350,12 +374,29 @@ def build_markdown_report(
                 vals.append("n/a" if sp is None else f"{sp:.2f}x")
         lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "## 4) Profiler duration coverage", "", "| Library | Profiler | Stage | Support | Samples | Mean duration (ms) | Std (ms) |", "|---|---|---|---|---:|---:|---:|"]
-    for rec in sorted(profiler_durations, key=lambda x: (x.library, x.profiler, x.stage)):
-        sup = "supported" if support_map.get(rec.library, {}).get(rec.stage, True) else "not_supported"
-        lines.append(f"| {rec.library} | {rec.profiler} | {rec.stage} | {sup} | {rec.sample_count} | {rec.mean_duration_ms:.2f} | {rec.std_duration_ms:.2f} |")
+    lines += ["", "## 4) Peak memory by stage (MB)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    for lib in libs:
+        vals = []
+        for stage in STAGES:
+            if not support_map.get(lib, {}).get(stage, True):
+                vals.append("n/s")
+                continue
+            rec = next((x for x in memory_stats if x.library == lib and x.stage == stage), None)
+            vals.append("n/a" if rec is None or rec.sample_count == 0 else f"{rec.mean_peak_mb:.2f}")
+        lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
 
-    lines += ["", "## 5) Peak memory by stage (MB)", "", "| Library | Stage | Support | Mean peak | Max peak | Samples |", "|---|---|---|---:|---:|---:|"]
+    lines += ["", "## 5) Relative memory vs reference (lib_peak / ref_peak)", "", "| Library | Step1 | Step2 | Step3 | Step4 |", "|---|---:|---:|---:|---:|"]
+    for lib in libs:
+        vals = []
+        for stage in STAGES:
+            if not support_map.get(lib, {}).get(stage, True):
+                vals.append("n/s")
+            else:
+                ratio = memory_ratios.get(lib, {}).get(stage)
+                vals.append("n/a" if ratio is None else f"{ratio:.2f}x")
+        lines.append(f"| {lib} | {vals[0]} | {vals[1]} | {vals[2]} | {vals[3]} |")
+
+    lines += ["", "## 6) Peak memory by stage (MB, detailed)", "", "| Library | Stage | Support | Mean peak | Max peak | Samples |", "|---|---|---|---:|---:|---:|"]
     for rec in sorted(memory_stats, key=lambda x: (x.library, x.stage)):
         sup = "supported" if support_map.get(rec.library, {}).get(rec.stage, True) else "not_supported"
         if rec.sample_count == 0:
@@ -363,10 +404,16 @@ def build_markdown_report(
         else:
             lines.append(f"| {rec.library} | {rec.stage} | {sup} | {rec.mean_peak_mb:.2f} | {rec.max_peak_mb:.2f} | {rec.sample_count} |")
 
-    lines += ["", "## 6) Bottlenecks from line profiler (filtered, supported stages only)", "", "| Library | Stage | File:Line | Total time (s) | Hits | Code |", "|---|---|---|---:|---:|---|"]
+    lines += ["", "## 7) Bottlenecks from line profiler (filtered, supported stages only)", "", "| Library | Stage | File:Line | Total time (s) | Hits | Code |", "|---|---|---|---:|---:|---|"]
     for b in sorted(bottlenecks, key=lambda x: (x.library, x.stage, -x.total_time_s)):
         code = b.code.replace("|", "\\|")
         lines.append(f"| {b.library} | {b.stage} | `{b.filename}:{b.line}` | {b.total_time_s:.4f} | {b.hits} | `{code}` |")
+
+    lines += ["", "## 8) Profiler duration coverage (profiling overhead)", "", "| Library | Profiler | Stage | Support | Samples | Mean duration (ms) | Std (ms) |", "|---|---|---|---|---:|---:|---:|"]
+    for rec in sorted(profiler_durations, key=lambda x: (x.library, x.profiler, x.stage)):
+        sup = "supported" if support_map.get(rec.library, {}).get(rec.stage, True) else "not_supported"
+        lines.append(f"| {rec.library} | {rec.profiler} | {rec.stage} | {sup} | {rec.sample_count} | {rec.mean_duration_ms:.2f} | {rec.std_duration_ms:.2f} |")
+
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -421,6 +468,7 @@ def main() -> int:
         )
 
     speedups = speedup_vs_reference(all_stage_timings, args.reference, support_map)
+    memory_ratios = memory_ratio_vs_reference(all_memory, args.reference, support_map)
 
     timings_rows = []
     for x in sorted(all_stage_timings, key=lambda i: (i.library, i.stage)):
@@ -459,6 +507,7 @@ def main() -> int:
             "sample_count": x.sample_count,
             "mean_peak_mb": round(x.mean_peak_mb, 6),
             "max_peak_mb": round(x.max_peak_mb, 6),
+            "memory_ratio_vs_reference": None if (not support_map.get(x.library, {}).get(x.stage, True) or memory_ratios[x.library][x.stage] is None) else round(float(memory_ratios[x.library][x.stage]), 6),
         }
         for x in sorted(all_memory, key=lambda i: (i.library, i.stage))
     ]
@@ -486,7 +535,7 @@ def main() -> int:
         duration_rows,
         ["library", "profiler", "stage", "supported", "sample_count", "mean_duration_ms", "std_duration_ms"],
     )
-    write_csv(out_dir / "memory_stage_summary.csv", memory_rows, ["library", "stage", "supported", "sample_count", "mean_peak_mb", "max_peak_mb"])
+    write_csv(out_dir / "memory_stage_summary.csv", memory_rows, ["library", "stage", "supported", "sample_count", "mean_peak_mb", "max_peak_mb", "memory_ratio_vs_reference"])
     write_csv(out_dir / "line_bottlenecks.csv", bottleneck_rows, ["library", "stage", "profiler", "filename", "line", "total_time_s", "hits", "code"])
 
     report_md = build_markdown_report(
@@ -497,6 +546,7 @@ def main() -> int:
         memory_stats=all_memory,
         bottlenecks=all_bottlenecks,
         speedups=speedups,
+        memory_ratios=memory_ratios,
         support_map=support_map,
         support_source=support_source,
     )
@@ -517,6 +567,7 @@ def main() -> int:
         "stage_timings": timings_rows,
         "profiler_durations": duration_rows,
         "memory_summary": memory_rows,
+        "memory_ratio_vs_reference": memory_ratios,
         "line_bottlenecks": bottleneck_rows,
     }
     (out_dir / "analysis_report.json").write_text(json.dumps(report_json, ensure_ascii=False, indent=2), encoding="utf-8")

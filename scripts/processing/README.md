@@ -98,7 +98,7 @@ Aggregates profiling metrics from the latest run of each library and prepares ar
 - Collects per-stage timing metrics from CPU profiler metadata (`mean_per_repeat_ms`, `std`).
 - Marks stages as `supported`/`not_supported` using latest `comparison_report` and masks misleading speedups.
 - Builds profiler coverage/duration table by profiler and stage.
-- Collects per-stage memory peaks from `profilers/memory/*/*.json`.
+- Collects per-stage memory peaks from `profilers/memory/*/*.json` and builds comparison tables (`lib_peak`, `lib_peak/ref_peak`).
 - Extracts top bottleneck lines from line profiler outputs.
 - Computes relative speedup vs reference library.
 - Produces CSV/JSON/Markdown artifacts for analysis and plotting.
@@ -134,7 +134,7 @@ python scripts/processing/analyze_profiling_postprocessing.py \
 - Собирает метрики времени по этапам из metadata CPU профайлера (`mean_per_repeat_ms`, `std`).
 - Формирует таблицу покрытия/длительностей по каждому профайлеру и этапу.
 - Проставляет `supported`/`not_supported` по этапам (по последнему `comparison_report`) и убирает вводящие в заблуждение speedup для неподдерживаемых этапов.
-- Собирает пики памяти по этапам из `profilers/memory/*/*.json`.
+- Собирает пики памяти по этапам из `profilers/memory/*/*.json` и строит сравнительные таблицы (`lib_peak`, `lib_peak/ref_peak`).
 - Извлекает узкие места (top lines) из line profiler.
 - Считает относительное ускорение относительно эталонной библиотеки.
 - Формирует CSV/JSON/Markdown артефакты для графиков и аналитики.
