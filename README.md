@@ -11,6 +11,9 @@ DS-Benchmark — проект для сравнения реализаций т�
 - Стандартизированное хранение артефактов и результатов.
 - Скрипты валидации и обработки отчетов.
 
+### Основной результат исследования
+- [Интерпретация результатов профилирования (RU)](results/profiling/processed_results/postprocessing_analysis/20260219_074831/analysis_interpretation_ru.md) — ключевой итог проведенного исследования.
+
 ### Навигация по модулям
 - [`src/generators/README.md`](src/generators/README.md) — генерация и валидация DASS-данных.
 - [`src/adapters/README.md`](src/adapters/README.md) — адаптерный слой библиотек.
@@ -40,6 +43,9 @@ DS-Benchmark is a benchmarking project for Dempster–Shafer implementations, co
 - CPU/Memory/Line/Scalene profiling.
 - Standardized artifact/result storage.
 - Validation and report-processing scripts.
+
+### Primary research outcome
+- [Profiling results interpretation (RU)](results/profiling/processed_results/postprocessing_analysis/20260219_074831/analysis_interpretation_ru.md) — the main deliverable of this study.
 
 ### Module map
 - [`src/generators/README.md`](src/generators/README.md) — DASS data generation and validation.
