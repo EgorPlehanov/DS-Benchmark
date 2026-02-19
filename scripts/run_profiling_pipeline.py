@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.adapters.factory import ADAPTER_REGISTRY
+from src.adapters.factory import ADAPTER_REGISTRY, ALIASES
 
 
 def run_command(cmd: list[str]) -> None:
@@ -41,6 +41,27 @@ def parse_libraries(value: str) -> list[str]:
         )
 
     return libraries
+
+
+def adapter_key_to_results_library(name: str) -> str:
+    """Преобразует CLI-ключ/алиас адаптера в имя папки результатов."""
+    key = ALIASES.get(name.strip().lower(), name.strip().lower())
+    if key not in ADAPTER_REGISTRY:
+        return name.strip()
+
+    # Папка результатов строится через sanitize имени адаптера в раннере:
+    #  our -> our, dst_py -> dstpy, pyds -> pyds, dstz -> dstz
+    return key.replace("_", "")
+
+
+def resolve_results_libraries(raw_value: str | None, fallback_libraries: list[str]) -> str:
+    """Нормализует список библиотек для compare/analyze до имен папок в results."""
+    if raw_value is None:
+        source = fallback_libraries
+    else:
+        source = [item.strip() for item in raw_value.split(",") if item.strip()]
+
+    return ",".join(adapter_key_to_results_library(item) for item in source)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -172,10 +193,11 @@ def main() -> int:
     python = sys.executable
     total = len(args.libraries)
     selected_libraries = ",".join(args.libraries)
+    results_reference = adapter_key_to_results_library(args.reference)
     compare_base_dir = args.compare_base_dir or args.output_dir
     analyze_base_dir = args.analyze_base_dir or args.output_dir
-    analyze_libraries = args.analyze_libraries or selected_libraries
-    compare_libraries = args.compare_libraries or selected_libraries
+    analyze_libraries = resolve_results_libraries(args.analyze_libraries, args.libraries)
+    compare_libraries = resolve_results_libraries(args.compare_libraries, args.libraries)
     plot_base_dir = args.plot_base_dir or f"{analyze_base_dir}/processed_results/postprocessing_analysis"
 
     print("🚀 Запуск профилирования по библиотекам")
@@ -221,7 +243,7 @@ def main() -> int:
                 "--base-dir",
                 compare_base_dir,
                 "--reference",
-                args.reference,
+                results_reference,
                 "--libraries",
                 compare_libraries,
                 "--tests",
@@ -240,7 +262,7 @@ def main() -> int:
             "--base-dir",
             analyze_base_dir,
             "--reference",
-            args.reference,
+            results_reference,
             "--libraries",
             analyze_libraries,
             "--top-lines",
@@ -260,7 +282,7 @@ def main() -> int:
             "--top-lines",
             str(args.plot_top_lines),
             "--line-library",
-            args.plot_line_library,
+            adapter_key_to_results_library(args.plot_line_library),
         ]
         if args.plot_analysis_dir is not None:
             plot_cmd.extend(["--analysis-dir", args.plot_analysis_dir])
