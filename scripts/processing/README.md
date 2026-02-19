@@ -164,6 +164,31 @@ python scripts/processing/plot_postprocessing_analysis.py \
 ```
 
 
+#### `package_postprocessing_artifacts.py`
+
+Packs all source run artifacts linked in `analysis_report.json` (`meta.source_runs`) into a maximum-compression archive and stores it in a separate timestamped folder under `processed_results/postprocessing_artifacts` together with a full copy of the selected analysis report files.
+
+**What it does:**
+- Selects analysis directory by timestamp or uses the latest one.
+- Reads `analysis_report.json` and resolves `meta.source_runs` paths.
+- Creates a new destination folder in `results/profiling/processed_results/postprocessing_artifacts/<timestamp>`.
+- Copies all files/subfolders from the selected analysis directory to destination.
+- Creates `source_runs.tar.xz` (LZMA, preset=9) with all source run folders.
+- Optionally removes original source run folders via `--delete-source`.
+
+**Typical usage:**
+
+```bash
+python scripts/processing/package_postprocessing_artifacts.py
+```
+
+```bash
+python scripts/processing/package_postprocessing_artifacts.py \
+  --analysis-timestamp 20260219_020406 \
+  --delete-source
+```
+
+
 ---
 
 #### `analyze_profiling_postprocessing.py`
@@ -226,6 +251,31 @@ python scripts/processing/analyze_profiling_postprocessing.py \
 - `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_bottlenecks_library_sorted_by_line.png`
 - `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_timing_by_library_subplots.png`
 - `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/plot_summary.md`
+
+
+#### `package_postprocessing_artifacts.py`
+
+Упаковывает все исходные профилировочные прогоны из `analysis_report.json` (`meta.source_runs`) в архив с максимальным сжатием и сохраняет его в отдельной папке с меткой времени внутри `processed_results/postprocessing_artifacts` вместе с копией файлов выбранного отчета.
+
+**Что делает скрипт:**
+- Берет директорию анализа по переданному таймстемпу или выбирает последнюю.
+- Читает `analysis_report.json` и пути из `meta.source_runs`.
+- Создает новую папку назначения в `results/profiling/processed_results/postprocessing_artifacts/<timestamp>`.
+- Копирует туда все файлы/подпапки из выбранного анализа.
+- Создает архив `source_runs.tar.xz` (LZMA, `preset=9`) со всеми source run директориями.
+- При `--delete-source` удаляет исходные данные после успешной упаковки.
+
+**Пример запуска:**
+
+```bash
+python scripts/processing/package_postprocessing_artifacts.py
+```
+
+```bash
+python scripts/processing/package_postprocessing_artifacts.py \
+  --analysis-timestamp 20260219_020406 \
+  --delete-source
+```
 
 **Пример запуска:**
 
