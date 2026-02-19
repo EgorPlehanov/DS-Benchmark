@@ -135,7 +135,8 @@ Builds visual plots from already prepared postprocessing artifacts (`stage_timin
 - Generates a CPU stage timing heatmap.
 - Generates grouped speedup bars vs reference library.
 - Generates memory-ratio heatmap vs reference.
-- Generates top line bottlenecks horizontal chart.
+- Generates line bottlenecks chart for selected library (stage colors + full code line labels).
+- Generates per-library subplots for line timings sorted by line number inside each library.
 - Writes a small `plot_summary.md` index.
 
 **Outputs (default):**
@@ -146,8 +147,7 @@ Builds visual plots from already prepared postprocessing artifacts (`stage_timin
 - `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_relative_heatmap.png`
 - `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_efficiency_grouped_bar.png`
 - `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_bottlenecks_library_sorted_by_line.png`
-- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_timing_grouped_by_library.png`
-- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/cpu_stability_grouped_bar.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_timing_by_library_subplots.png`
 - `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/plot_summary.md`
 
 **Typical usage:**
@@ -212,7 +212,8 @@ python scripts/processing/analyze_profiling_postprocessing.py \
 - Строит heatmap по CPU-таймингам этапов.
 - Строит grouped bar по speedup относительно reference.
 - Строит heatmap по отношению памяти к reference.
-- Строит горизонтальный график top line bottlenecks.
+- Строит график узких мест по строкам для выбранной библиотеки (цвета этапов + полный текст строки кода).
+- Строит подграфики по библиотекам для line-таймингов с сортировкой строк по номеру внутри каждой библиотеки.
 - Добавляет индекс `plot_summary.md`.
 
 **Артефакты на выходе (по умолчанию):**
@@ -223,8 +224,7 @@ python scripts/processing/analyze_profiling_postprocessing.py \
 - `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_relative_heatmap.png`
 - `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_efficiency_grouped_bar.png`
 - `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_bottlenecks_library_sorted_by_line.png`
-- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_timing_grouped_by_library.png`
-- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/cpu_stability_grouped_bar.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_timing_by_library_subplots.png`
 - `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/plot_summary.md`
 
 **Пример запуска:**

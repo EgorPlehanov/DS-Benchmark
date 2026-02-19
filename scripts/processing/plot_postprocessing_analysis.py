@@ -14,6 +14,12 @@ import numpy as np
 
 
 STAGE_ORDER = ["step1", "step2", "step3", "step4"]
+STAGE_COLORS = {
+    "step1": "#1f77b4",
+    "step2": "#ff7f0e",
+    "step3": "#2ca02c",
+    "step4": "#d62728",
+}
 
 
 def parse_bool(value: str) -> bool:
@@ -169,118 +175,104 @@ def select_primary_file_for_library(rows: List[dict], library: str) -> str | Non
     return max(totals, key=totals.get)
 
 
-def plot_line_bottlenecks_our_by_line(rows: List[dict], library: str, out_path: Path, top_n: int = 25) -> None:
+def plot_line_bottlenecks_library_sorted_by_line(rows: List[dict], library: str, out_path: Path, top_n: int = 25) -> None:
+    primary_file = select_primary_file_for_library(rows, library)
+
     data = []
     for row in rows:
         if row.get("library") != library:
             continue
-        t = safe_float(row.get("total_time_s"))
+        if primary_file and row.get("filename") != primary_file:
+            continue
         line_no = int(row.get("line", 0) or 0)
-        if t is None or line_no <= 0:
+        total_s = safe_float(row.get("total_time_s"))
+        if line_no <= 0 or total_s is None:
             continue
-        data.append((line_no, t, row.get("stage", "?"), row.get("filename", "")))
+        stage = row.get("stage", "unknown")
+        code = row.get("code", "")
+        data.append((line_no, total_s, stage, code))
 
     if not data:
         return
 
-    primary_file = select_primary_file_for_library(rows, library)
-    if primary_file:
-        data = [d for d in data if d[3] == primary_file]
-
-    data.sort(key=lambda x: (x[0], -x[1]))
+    # Sort by line number (requested), keep only top_n first entries by line order.
+    data.sort(key=lambda x: x[0])
     data = data[:top_n]
-    if not data:
-        return
 
-    labels = [f"L{line} ({stage})" for line, _, stage, _ in data]
+    labels = [f"L{line}: {code}" for line, _, _, code in data]
     values = [t for _, t, _, _ in data]
+    colors = [STAGE_COLORS.get(stage, "gray") for _, _, stage, _ in data]
 
-    fig, ax = plt.subplots(figsize=(12, 7))
-    y = np.arange(len(labels))
-    ax.barh(y, values, color="tab:blue")
-    ax.set_yticks(y)
-    ax.set_yticklabels(labels, fontsize=8)
-    ax.invert_yaxis()
-    ax.set_xlabel("total line time (s)")
-    short_name = Path(primary_file).name if primary_file else "all files"
-    ax.set_title(f"{library}: line bottlenecks sorted by line number ({short_name})")
-    plt.tight_layout()
-    fig.savefig(out_path, dpi=180)
-    plt.close(fig)
-
-
-def plot_line_grouped_by_library(rows: List[dict], out_path: Path, top_lines: int = 15) -> None:
-    grouped: Dict[Tuple[str, int], Dict[str, float]] = defaultdict(dict)
-    all_libs = set()
-
-    for row in rows:
-        lib = row.get("library")
-        filename = row.get("filename")
-        line = int(row.get("line", 0) or 0)
-        t = safe_float(row.get("total_time_s"))
-        if not lib or not filename or line <= 0 or t is None:
-            continue
-        key = (Path(filename).name, line)
-        grouped[key][lib] = grouped[key].get(lib, 0.0) + t
-        all_libs.add(lib)
-
-    if not grouped:
-        return
-
-    ranking = sorted(grouped.items(), key=lambda kv: sum(kv[1].values()), reverse=True)[:top_lines]
-    ranking = sorted(ranking, key=lambda kv: kv[0][1])
-
-    libs = sorted(all_libs)
-    if "our" in libs:
-        libs.remove("our")
-        libs.insert(0, "our")
-
-    labels = [f"{fname}:L{line}" for (fname, line), _ in ranking]
     fig, ax = plt.subplots(figsize=(13, 8))
     y = np.arange(len(labels))
-    width = 0.8 / max(len(libs), 1)
-
-    for i, lib in enumerate(libs):
-        vals = [entry.get(lib, 0.0) for _, entry in ranking]
-        offset = (i - (len(libs) - 1) / 2.0) * width
-        ax.barh(y + offset, vals, height=width, label=lib)
-
+    ax.barh(y, values, color=colors)
     ax.set_yticks(y)
-    ax.set_yticklabels(labels, fontsize=8)
+    ax.set_yticklabels(labels, fontsize=7)
     ax.invert_yaxis()
     ax.set_xlabel("total line time (s)")
-    ax.set_title("Line timings by source line (sorted by line number, grouped by library)")
-    ax.legend(fontsize=8)
+
+    file_label = Path(primary_file).as_posix() if primary_file else "all files"
+    ax.set_title(f"{library}: line bottlenecks sorted by line number ({file_label})")
+
+    legend_handles = [
+        plt.Line2D([0], [0], color=STAGE_COLORS[s], lw=6, label=s)
+        for s in STAGE_ORDER
+    ]
+    ax.legend(handles=legend_handles, title="stage", fontsize=8)
+
     plt.tight_layout()
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
 
 
-def plot_stage_stability(rows: List[dict], out_path: Path) -> None:
-    filtered = [r for r in rows if parse_bool(r.get("supported", "true"))]
-    libs = order_libraries(filtered)
-    stages = STAGE_ORDER.copy()
+def plot_line_timing_by_library_subplots(rows: List[dict], out_path: Path, top_lines: int = 15) -> None:
+    libs = order_libraries(rows)
+    if not libs:
+        return
 
-    values = defaultdict(dict)
-    for row in filtered:
-        mean_total = safe_float(row.get("mean_total_ms"))
-        std_total = safe_float(row.get("std_total_ms"))
-        if mean_total is None or std_total is None or mean_total == 0:
+    per_lib_data: Dict[str, List[Tuple[int, float, str]]] = {}
+    for lib in libs:
+        primary = select_primary_file_for_library(rows, lib)
+        if not primary:
             continue
-        values[row["stage"]][row["library"]] = (std_total / mean_total) * 100.0
+        entries = []
+        for row in rows:
+            if row.get("library") != lib or row.get("filename") != primary:
+                continue
+            line_no = int(row.get("line", 0) or 0)
+            total_s = safe_float(row.get("total_time_s"))
+            if line_no <= 0 or total_s is None:
+                continue
+            entries.append((line_no, total_s, row.get("stage", "unknown")))
 
-    fig, ax = plt.subplots(figsize=(11, 5.6))
-    width = 0.18
-    x = np.arange(len(libs))
-    for i, stage in enumerate(stages):
-        y = [values[stage].get(lib, np.nan) for lib in libs]
-        ax.bar(x + (i - 1.5) * width, y, width=width, label=stage)
+        if entries:
+            entries.sort(key=lambda x: x[0])
+            per_lib_data[lib] = entries[:top_lines]
 
-    ax.set_xticks(x)
-    ax.set_xticklabels(libs)
-    ax.set_ylabel("coefficient of variation (%)")
-    ax.set_title("CPU stage timing stability (lower is better)")
-    ax.legend(ncols=3, fontsize=8)
+    if not per_lib_data:
+        return
+
+    lib_list = list(per_lib_data.keys())
+    fig, axes = plt.subplots(len(lib_list), 1, figsize=(13, 3.1 * len(lib_list)), squeeze=False)
+
+    for i, lib in enumerate(lib_list):
+        ax = axes[i][0]
+        entries = per_lib_data[lib]
+        y = np.arange(len(entries))
+        labels = [f"L{ln}" for ln, _, _ in entries]
+        values = [t for _, t, _ in entries]
+        colors = [STAGE_COLORS.get(stage, "gray") for _, _, stage in entries]
+
+        ax.barh(y, values, color=colors)
+        ax.set_yticks(y)
+        ax.set_yticklabels(labels, fontsize=8)
+        ax.invert_yaxis()
+        ax.set_xlabel("total line time (s)")
+        ax.set_title(f"{lib}: lines sorted by line number (library-specific file)")
+
+    legend_handles = [plt.Line2D([0], [0], color=STAGE_COLORS[s], lw=6, label=s) for s in STAGE_ORDER]
+    axes[0][0].legend(handles=legend_handles, title="stage", fontsize=8)
+
     plt.tight_layout()
     fig.savefig(out_path, dpi=180)
     plt.close(fig)
@@ -301,9 +293,8 @@ def build_plot_summary(plot_dir: Path, analysis_dir: Path, line_library: str) ->
         "- `memory_absolute_heatmap.png` — absolute memory peak by stage (MB).",
         "- `memory_relative_heatmap.png` — relative memory ratio vs reference (x).",
         "- `memory_efficiency_grouped_bar.png` — grouped memory efficiency bars (`ref/lib`).",
-        "- `line_bottlenecks_library_sorted_by_line.png` — line bottlenecks for selected library sorted by line number.",
-        "- `line_timing_grouped_by_library.png` — line timings grouped by libraries for shared top lines.",
-        "- `cpu_stability_grouped_bar.png` — stage timing stability (`std/mean`, %).",
+        "- `line_bottlenecks_library_sorted_by_line.png` — line bottlenecks for selected library with stage colors, full code line labels, sorted by line number.",
+        "- `line_timing_by_library_subplots.png` — one subplot per library, lines sorted by line number inside each library-specific file.",
         f"- Line-library focus: `{line_library}`.",
         "",
         "## Русский",
@@ -314,9 +305,8 @@ def build_plot_summary(plot_dir: Path, analysis_dir: Path, line_library: str) ->
         "- `memory_absolute_heatmap.png` — абсолютные пиковые значения памяти по этапам (МБ).",
         "- `memory_relative_heatmap.png` — относительное потребление памяти к эталону (x).",
         "- `memory_efficiency_grouped_bar.png` — группированный график эффективности памяти (`ref/lib`).",
-        "- `line_bottlenecks_library_sorted_by_line.png` — узкие места по строкам для выбранной библиотеки, отсортировано по номеру строки.",
-        "- `line_timing_grouped_by_library.png` — сравнение времени по строкам с группировкой по библиотекам.",
-        "- `cpu_stability_grouped_bar.png` — стабильность времени этапов (`std/mean`, %).",
+        "- `line_bottlenecks_library_sorted_by_line.png` — узкие места по строкам для выбранной библиотеки: цвет зависит от этапа, подпись содержит полный код строки, сортировка по номеру строки.",
+        "- `line_timing_by_library_subplots.png` — отдельные подграфики по библиотекам, строки отсортированы по номеру внутри файла конкретной библиотеки.",
         f"- Фокус по библиотеке для строк: `{line_library}`.",
     ]
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -404,20 +394,18 @@ def main() -> None:
         inverse=True,
     )
 
-    plot_line_bottlenecks_our_by_line(
+    plot_line_bottlenecks_library_sorted_by_line(
         line_rows,
         library=args.line_library,
         out_path=out_dir / "line_bottlenecks_library_sorted_by_line.png",
         top_n=args.top_lines,
     )
 
-    plot_line_grouped_by_library(
+    plot_line_timing_by_library_subplots(
         line_rows,
-        out_path=out_dir / "line_timing_grouped_by_library.png",
+        out_path=out_dir / "line_timing_by_library_subplots.png",
         top_lines=args.top_lines,
     )
-
-    plot_stage_stability(stage_rows, out_path=out_dir / "cpu_stability_grouped_bar.png")
 
     build_plot_summary(out_dir, analysis_dir, args.line_library)
     print(f"Plots saved to: {out_dir}")
