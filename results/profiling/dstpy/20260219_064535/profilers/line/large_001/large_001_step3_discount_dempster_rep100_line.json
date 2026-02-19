@@ -1,0 +1,2037 @@
+{
+  "profiler": "line",
+  "test_name": "large_001",
+  "step": "step3_discount_dempster",
+  "data": {
+    "file_stats": {
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\runners\\profiling_runner.py": {
+        "total_time": 17.081574799958616,
+        "lines": [
+          {
+            "line": 267,
+            "hits": 100,
+            "total_time": 17.079321200493723,
+            "avg_time": 0.17079321200493724,
+            "code": "            result = func(*args, **kwargs)"
+          },
+          {
+            "line": 266,
+            "hits": 101,
+            "total_time": 0.0021904994500800967,
+            "avg_time": 2.1688113367129672e-05,
+            "code": "        for _ in range(max(1, repeat_count)):"
+          },
+          {
+            "line": 265,
+            "hits": 1,
+            "total_time": 2.2300053387880325e-05,
+            "avg_time": 2.2300053387880325e-05,
+            "code": "        result = None"
+          },
+          {
+            "line": 263,
+            "hits": 1,
+            "total_time": 2.159993164241314e-05,
+            "avg_time": 2.159993164241314e-05,
+            "code": "    def _repeat_step(self, func, repeat_count: int, *args, **kwargs):"
+          },
+          {
+            "line": 268,
+            "hits": 1,
+            "total_time": 1.9200029782950878e-05,
+            "avg_time": 1.9200029782950878e-05,
+            "code": "        return result"
+          }
+        ]
+      },
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\runners\\universal_runner.py": {
+        "total_time": 17.510736303054728,
+        "lines": [
+          {
+            "line": 337,
+            "hits": 1500,
+            "total_time": 6.578511802363209,
+            "avg_time": 0.0043856745349088065,
+            "code": "            plausibility = self.adapter.calculate_plausibility(combined_data, element)"
+          },
+          {
+            "line": 336,
+            "hits": 1500,
+            "total_time": 6.481268796138465,
+            "avg_time": 0.00432084586409231,
+            "code": "            belief = self.adapter.calculate_belief(combined_data, element)"
+          },
+          {
+            "line": 319,
+            "hits": 100,
+            "total_time": 1.6498241998488083,
+            "avg_time": 0.016498241998488084,
+            "code": "        combined_bpa_str = self.adapter.combine_sources_dempster(discounted_data)"
+          },
+          {
+            "line": 302,
+            "hits": 300,
+            "total_time": 0.8060468006879091,
+            "avg_time": 0.0026868226689596973,
+            "code": "            discounted_list = self.adapter.apply_discounting(source_data, alpha)"
+          },
+          {
+            "line": 344,
+            "hits": 100,
+            "total_time": 0.44673679978586733,
+            "avg_time": 0.004467367997858673,
+            "code": "        results[\"beliefs\"][omega] = self.adapter.calculate_belief(combined_data, frame_elements)"
+          },
+          {
+            "line": 345,
+            "hits": 100,
+            "total_time": 0.44362640066538006,
+            "avg_time": 0.0044362640066538,
+            "code": "        results[\"plausibilities\"][omega] = self.adapter.calculate_plausibility(combined_data, frame_elements)"
+          },
+          {
+            "line": 312,
+            "hits": 500,
+            "total_time": 0.2370059012901038,
+            "avg_time": 0.0004740118025802076,
+            "code": "        discounted_bpas = [self._convert_string_bpa_to_frozenset(bpa_str)"
+          },
+          {
+            "line": 320,
+            "hits": 100,
+            "total_time": 0.16369160020258278,
+            "avg_time": 0.0016369160020258278,
+            "code": "        combined_bpa = self._convert_string_bpa_to_frozenset(combined_bpa_str)"
+          },
+          {
+            "line": 399,
+            "hits": 2200,
+            "total_time": 0.0653956012101844,
+            "avg_time": 2.9725273277356542e-05,
+            "code": "                elements = subset_str.strip(\"{}\").split(\",\")"
+          },
+          {
+            "line": 395,
+            "hits": 2600,
+            "total_time": 0.058452801895327866,
+            "avg_time": 2.248184688281841e-05,
+            "code": "        for subset_str, mass in bpa_str.items():"
+          },
+          {
+            "line": 403,
+            "hits": 2200,
+            "total_time": 0.056370600243099034,
+            "avg_time": 2.562300011049956e-05,
+            "code": "                    subset = frozenset(elements)"
+          },
+          {
+            "line": 296,
+            "hits": 300,
+            "total_time": 0.051377600408159196,
+            "avg_time": 0.0001712586680271973,
+            "code": "            source_data = self._get_source_data(loaded_data, i)"
+          },
+          {
+            "line": 400,
+            "hits": 2200,
+            "total_time": 0.04996599827427417,
+            "avg_time": 2.271181739739735e-05,
+            "code": "                if elements == ['']:"
+          },
+          {
+            "line": 404,
+            "hits": 2200,
+            "total_time": 0.04788179788738489,
+            "avg_time": 2.176445358517495e-05,
+            "code": "            bpa_frozenset[subset] = mass"
+          },
+          {
+            "line": 396,
+            "hits": 2200,
+            "total_time": 0.04785210150294006,
+            "avg_time": 2.1750955228609116e-05,
+            "code": "            if subset_str == \"{}\":"
+          },
+          {
+            "line": 339,
+            "hits": 1500,
+            "total_time": 0.036769800703041255,
+            "avg_time": 2.451320046869417e-05,
+            "code": "            results[\"beliefs\"][f\"{{{element}}}\"] = belief"
+          },
+          {
+            "line": 340,
+            "hits": 1500,
+            "total_time": 0.03581159678287804,
+            "avg_time": 2.3874397855252028e-05,
+            "code": "            results[\"plausibilities\"][f\"{{{element}}}\"] = plausibility"
+          },
+          {
+            "line": 335,
+            "hits": 1600,
+            "total_time": 0.03536560374777764,
+            "avg_time": 2.2103502342361025e-05,
+            "code": "        for element in frame_elements:"
+          },
+          {
+            "line": 323,
+            "hits": 100,
+            "total_time": 0.015436199959367514,
+            "avg_time": 0.00015436199959367513,
+            "code": "        combined_data = self._create_combined_data(discounted_data, combined_bpa)"
+          },
+          {
+            "line": 316,
+            "hits": 100,
+            "total_time": 0.01519740023650229,
+            "avg_time": 0.0001519740023650229,
+            "code": "        discounted_data = self._create_discounted_data(loaded_data, discounted_bpas)"
+          },
+          {
+            "line": 389,
+            "hits": 400,
+            "total_time": 0.010795900016091764,
+            "avg_time": 2.698975004022941e-05,
+            "code": "        first_key = next(iter(bpa_str.keys()))"
+          },
+          {
+            "line": 313,
+            "hits": 500,
+            "total_time": 0.010357997845858335,
+            "avg_time": 2.0715995691716672e-05,
+            "code": "                          for bpa_str in discounted_bpas_str]"
+          },
+          {
+            "line": 406,
+            "hits": 400,
+            "total_time": 0.00903500069398433,
+            "avg_time": 2.2587501734960825e-05,
+            "code": "        return bpa_frozenset"
+          },
+          {
+            "line": 390,
+            "hits": 400,
+            "total_time": 0.008858801214955747,
+            "avg_time": 2.2147003037389367e-05,
+            "code": "        if isinstance(first_key, frozenset):"
+          },
+          {
+            "line": 385,
+            "hits": 400,
+            "total_time": 0.008625200018286705,
+            "avg_time": 2.1563000045716764e-05,
+            "code": "        if not bpa_str:"
+          },
+          {
+            "line": 394,
+            "hits": 400,
+            "total_time": 0.008614598424173892,
+            "avg_time": 2.153649606043473e-05,
+            "code": "        bpa_frozenset: Dict[frozenset, float] = {}"
+          },
+          {
+            "line": 294,
+            "hits": 400,
+            "total_time": 0.00859640073031187,
+            "avg_time": 2.1491001825779675e-05,
+            "code": "        for i in range(sources_count):"
+          },
+          {
+            "line": 290,
+            "hits": 100,
+            "total_time": 0.008408300345763564,
+            "avg_time": 8.408300345763564e-05,
+            "code": "        sources_count = self.adapter.get_sources_count(loaded_data)"
+          },
+          {
+            "line": 325,
+            "hits": 100,
+            "total_time": 0.008331499993801117,
+            "avg_time": 8.331499993801117e-05,
+            "code": "        frame_elements = self.adapter.get_frame_of_discernment(loaded_data)"
+          },
+          {
+            "line": 473,
+            "hits": 300,
+            "total_time": 0.007358400383964181,
+            "avg_time": 2.4528001279880603e-05,
+            "code": "            single_source_data = loaded_data.copy()"
+          }
+        ]
+      },
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py": {
+        "total_time": 41.85443919792306,
+        "lines": [
+          {
+            "line": 155,
+            "hits": 3500,
+            "total_time": 10.466262799804099,
+            "avg_time": 0.002990360799944028,
+            "code": "        return self._MassFunction(self._to_plain_dict(bpa), frame=frame)"
+          },
+          {
+            "line": 118,
+            "hits": 3200,
+            "total_time": 10.43212969833985,
+            "avg_time": 0.003260040530731203,
+            "code": "            return self._to_mass_function(data[\"bpas\"][0], frame_elements)"
+          },
+          {
+            "line": 59,
+            "hits": 1600,
+            "total_time": 5.43267500132788,
+            "avg_time": 0.0033954218758299247,
+            "code": "        bpa = self._extract_bpa(data)"
+          },
+          {
+            "line": 63,
+            "hits": 1600,
+            "total_time": 5.428600199753419,
+            "avg_time": 0.0033928751248458867,
+            "code": "        bpa = self._extract_bpa(data)"
+          },
+          {
+            "line": 64,
+            "hits": 1600,
+            "total_time": 1.4930719004478306,
+            "avg_time": 0.0009331699377798941,
+            "code": "        return float(bpa.plausibility(self._event_to_key(event)))"
+          },
+          {
+            "line": 60,
+            "hits": 1600,
+            "total_time": 1.395333896158263,
+            "avg_time": 0.0008720836850989144,
+            "code": "        return float(bpa.belief(self._event_to_key(event)))"
+          },
+          {
+            "line": 144,
+            "hits": 37900,
+            "total_time": 1.1139436985831708,
+            "avg_time": 2.939165431617865e-05,
+            "code": "            return {frozenset(k): float(v) for k, v in bpa.items()}"
+          },
+          {
+            "line": 74,
+            "hits": 200,
+            "total_time": 1.085560100269504,
+            "avg_time": 0.005427800501347519,
+            "code": "            result = result.combine_conjunctive(bpa, normalization=True)"
+          },
+          {
+            "line": 123,
+            "hits": 3000,
+            "total_time": 0.8157732008257881,
+            "avg_time": 0.0002719244002752627,
+            "code": "            return self._parse_subset_str(event)"
+          },
+          {
+            "line": 130,
+            "hits": 15000,
+            "total_time": 0.73560470121447,
+            "avg_time": 4.9040313414298e-05,
+            "code": "        return frozenset(item.strip() for item in raw.split(\",\") if item.strip())"
+          },
+          {
+            "line": 68,
+            "hits": 400,
+            "total_time": 0.4202489001909271,
+            "avg_time": 0.0010506222504773177,
+            "code": "        bpas = [self._to_mass_function(bpa, frame_elements) for bpa in data.get(\"bpas\", [])]"
+          },
+          {
+            "line": 83,
+            "hits": 300,
+            "total_time": 0.3754019004991278,
+            "avg_time": 0.0012513396683304261,
+            "code": "            mass_function = self._to_mass_function(bpa, frame_elements)"
+          },
+          {
+            "line": 154,
+            "hits": 300,
+            "total_time": 0.3370175991440192,
+            "avg_time": 0.0011233919971467307,
+            "code": "            return self._MassFunction(self._to_plain_dict(bpa), frame=frame)"
+          },
+          {
+            "line": 158,
+            "hits": 2600,
+            "total_time": 0.2704809990245849,
+            "avg_time": 0.0001040311534709942,
+            "code": "        return {self._format_subset(set(k)): round(float(v), 10) for k, v in dict(bpa).items()}"
+          },
+          {
+            "line": 84,
+            "hits": 300,
+            "total_time": 0.17754739942029119,
+            "avg_time": 0.000591824664734304,
+            "code": "            discounted_bpa = self._discount(mass_function, reliability)"
+          },
+          {
+            "line": 98,
+            "hits": 300,
+            "total_time": 0.17115470150019974,
+            "avg_time": 0.0005705156716673325,
+            "code": "            discounted.append(self._format_bpa(discounted_bpa))"
+          },
+          {
+            "line": 76,
+            "hits": 100,
+            "total_time": 0.12488570029381663,
+            "avg_time": 0.0012488570029381663,
+            "code": "        return self._format_bpa(result)"
+          },
+          {
+            "line": 141,
+            "hits": 3800,
+            "total_time": 0.11165350081864744,
+            "avg_time": 2.938250021543354e-05,
+            "code": "            first_key = next(iter(bpa.keys()))"
+          },
+          {
+            "line": 138,
+            "hits": 3800,
+            "total_time": 0.09065310459118336,
+            "avg_time": 2.385608015557457e-05,
+            "code": "        if isinstance(bpa, dict):"
+          },
+          {
+            "line": 142,
+            "hits": 3800,
+            "total_time": 0.08907260303385556,
+            "avg_time": 2.3440158693119883e-05,
+            "code": "            if isinstance(first_key, str):"
+          },
+          {
+            "line": 139,
+            "hits": 3800,
+            "total_time": 0.08839959418401122,
+            "avg_time": 2.3263051101055584e-05,
+            "code": "            if not bpa:"
+          },
+          {
+            "line": 151,
+            "hits": 3800,
+            "total_time": 0.08736929832957685,
+            "avg_time": 2.299192061304654e-05,
+            "code": "        if isinstance(bpa, self._MassFunction):"
+          },
+          {
+            "line": 150,
+            "hits": 3800,
+            "total_time": 0.08505750156473368,
+            "avg_time": 2.238355304335097e-05,
+            "code": "        frame = frame_elements if frame_elements else None"
+          },
+          {
+            "line": 114,
+            "hits": 3200,
+            "total_time": 0.08289089822210371,
+            "avg_time": 2.5903405694407412e-05,
+            "code": "        frame_elements = data.get(\"frame_elements\", []) if isinstance(data, dict) else []"
+          },
+          {
+            "line": 117,
+            "hits": 3200,
+            "total_time": 0.07880679972004145,
+            "avg_time": 2.4627124912512954e-05,
+            "code": "        if isinstance(data, dict) and data.get(\"bpas\"):"
+          },
+          {
+            "line": 127,
+            "hits": 3000,
+            "total_time": 0.07726600067690015,
+            "avg_time": 2.5755333558966716e-05,
+            "code": "        raw = subset_str.strip(\"{}\")"
+          },
+          {
+            "line": 122,
+            "hits": 3200,
+            "total_time": 0.07300240104086697,
+            "avg_time": 2.281325032527093e-05,
+            "code": "        if isinstance(event, str):"
+          },
+          {
+            "line": 115,
+            "hits": 3200,
+            "total_time": 0.0726835026871413,
+            "avg_time": 2.2713594589731655e-05,
+            "code": "        if isinstance(data, dict) and \"bpa\" in data:"
+          },
+          {
+            "line": 128,
+            "hits": 3000,
+            "total_time": 0.06735419947654009,
+            "avg_time": 2.2451399825513364e-05,
+            "code": "        if not raw:"
+          },
+          {
+            "line": 135,
+            "hits": 2200,
+            "total_time": 0.06540080043487251,
+            "avg_time": 2.9727636561305686e-05,
+            "code": "        return \"{\" + \",\".join(sorted(subset)) + \"}\""
+          }
+        ]
+      },
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py": {
+        "total_time": 18.01786540437024,
+        "lines": [
+          {
+            "line": 75,
+            "hits": 36000,
+            "total_time": 4.00238981237635,
+            "avg_time": 0.00011117749478823195,
+            "code": "                    self[_convert_to_frozenset(h)] = float(v)"
+          },
+          {
+            "line": 86,
+            "hits": 3200,
+            "total_time": 2.2348694008542225,
+            "avg_time": 0.0006983966877669445,
+            "code": "                self.normalize()"
+          },
+          {
+            "line": 191,
+            "hits": 24500,
+            "total_time": 1.2473200026433915,
+            "avg_time": 5.09110205160568e-05,
+            "code": "        return sum(m for h, m in self.items() if h.intersection(hypothesis))"
+          },
+          {
+            "line": 171,
+            "hits": 22500,
+            "total_time": 1.0942721030442044,
+            "avg_time": 4.863431569085353e-05,
+            "code": "        return sum(m for h, m in self.items() if h.issubset(hypothesis))"
+          },
+          {
+            "line": 236,
+            "hits": 200,
+            "total_time": 1.0106196996057406,
+            "avg_time": 0.005053098498028703,
+            "code": "        return combine_conjunctive(self, other, normalization=normalization)"
+          },
+          {
+            "line": 21,
+            "hits": 39200,
+            "total_time": 0.9278188226744533,
+            "avg_time": 2.366884751720544e-05,
+            "code": "    if isinstance(item, frozenset):"
+          },
+          {
+            "line": 73,
+            "hits": 40000,
+            "total_time": 0.9261242721695453,
+            "avg_time": 2.3153106804238634e-05,
+            "code": "            for h, v in masses.items():"
+          },
+          {
+            "line": 22,
+            "hits": 39200,
+            "total_time": 0.9039985808776692,
+            "avg_time": 2.306118828769564e-05,
+            "code": "        return item"
+          },
+          {
+            "line": 149,
+            "hits": 37100,
+            "total_time": 0.8867284224834293,
+            "avg_time": 2.390103564645362e-05,
+            "code": "        for h in list(self.keys()):"
+          },
+          {
+            "line": 74,
+            "hits": 36000,
+            "total_time": 0.8133054131176323,
+            "avg_time": 2.2591817031045342e-05,
+            "code": "                if v > 0:  # Only add positive masses"
+          },
+          {
+            "line": 150,
+            "hits": 33700,
+            "total_time": 0.8001587799517438,
+            "avg_time": 2.3743583974829193e-05,
+            "code": "            self[h] /= total"
+          },
+          {
+            "line": 19,
+            "hits": 39200,
+            "total_time": 0.6466031975578517,
+            "avg_time": 1.6494979529537033e-05,
+            "code": "def _convert_to_frozenset(item):"
+          },
+          {
+            "line": 85,
+            "hits": 4000,
+            "total_time": 0.39752810331992805,
+            "avg_time": 9.938202582998201e-05,
+            "code": "            if not self.is_normalized():"
+          },
+          {
+            "line": 66,
+            "hits": 3800,
+            "total_time": 0.3655235971091315,
+            "avg_time": 9.619042029187671e-05,
+            "code": "                self.frame = Frame(frame)"
+          },
+          {
+            "line": 170,
+            "hits": 1600,
+            "total_time": 0.17466709902510047,
+            "avg_time": 0.0001091669368906878,
+            "code": "        hypothesis = _convert_to_frozenset(hypothesis)"
+          },
+          {
+            "line": 190,
+            "hits": 1600,
+            "total_time": 0.17315029713790864,
+            "avg_time": 0.0001082189357111929,
+            "code": "        hypothesis = _convert_to_frozenset(hypothesis)"
+          },
+          {
+            "line": 128,
+            "hits": 4000,
+            "total_time": 0.12933570088353008,
+            "avg_time": 3.233392522088252e-05,
+            "code": "        return abs(sum(self.values()) - 1.0) < 1e-10"
+          },
+          {
+            "line": 59,
+            "hits": 4300,
+            "total_time": 0.11699689691886306,
+            "avg_time": 2.720858067880536e-05,
+            "code": "        super().__init__()"
+          },
+          {
+            "line": 145,
+            "hits": 3400,
+            "total_time": 0.1036214999621734,
+            "avg_time": 3.047691175358041e-05,
+            "code": "        total = sum(self.values())"
+          },
+          {
+            "line": 63,
+            "hits": 4300,
+            "total_time": 0.10255940281786025,
+            "avg_time": 2.385102391113029e-05,
+            "code": "            if isinstance(frame, Frame):"
+          },
+          {
+            "line": 62,
+            "hits": 4300,
+            "total_time": 0.10048579866997898,
+            "avg_time": 2.3368790388367203e-05,
+            "code": "        if frame is not None:"
+          },
+          {
+            "line": 71,
+            "hits": 4300,
+            "total_time": 0.09974810073617846,
+            "avg_time": 2.3197232729343828e-05,
+            "code": "        if masses:"
+          },
+          {
+            "line": 78,
+            "hits": 4000,
+            "total_time": 0.0929904991062358,
+            "avg_time": 2.3247624776558952e-05,
+            "code": "            if self.frame is None:"
+          },
+          {
+            "line": 140,
+            "hits": 3400,
+            "total_time": 0.08793839521240443,
+            "avg_time": 2.5864233886001304e-05,
+            "code": "        empty_set = frozenset()"
+          },
+          {
+            "line": 141,
+            "hits": 3400,
+            "total_time": 0.08315300452522933,
+            "avg_time": 2.4456766036832157e-05,
+            "code": "        if empty_set in self:"
+          },
+          {
+            "line": 146,
+            "hits": 3400,
+            "total_time": 0.08259189908858389,
+            "avg_time": 2.4291735026054085e-05,
+            "code": "        if total == 0:"
+          },
+          {
+            "line": 152,
+            "hits": 3400,
+            "total_time": 0.08049459906760603,
+            "avg_time": 2.3674882078707657e-05,
+            "code": "        return self"
+          },
+          {
+            "line": 47,
+            "hits": 4300,
+            "total_time": 0.07357120153028518,
+            "avg_time": 1.710958175122911e-05,
+            "code": "    def __init__(self, masses=None, frame=None):"
+          },
+          {
+            "line": 117,
+            "hits": 4000,
+            "total_time": 0.06805679760873318,
+            "avg_time": 1.7014199402183293e-05,
+            "code": "    def is_normalized(self):"
+          },
+          {
+            "line": 235,
+            "hits": 200,
+            "total_time": 0.0627839001826942,
+            "avg_time": 0.000313919500913471,
+            "code": "        from ..combination import combine_conjunctive"
+          }
+        ]
+      },
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\frame.py": {
+        "total_time": 0.17048260278534144,
+        "lines": [
+          {
+            "line": 37,
+            "hits": 3800,
+            "total_time": 0.10544730513356626,
+            "avg_time": 2.77492908246227e-05,
+            "code": "        self.elements = frozenset(elements)"
+          },
+          {
+            "line": 28,
+            "hits": 3800,
+            "total_time": 0.06503529765177518,
+            "avg_time": 1.711455201362505e-05,
+            "code": "    def __init__(self, elements):"
+          }
+        ]
+      },
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\discounting\\classical.py": {
+        "total_time": 0.1646459992043674,
+        "lines": [
+          {
+            "line": 43,
+            "hits": 300,
+            "total_time": 0.05560390022583306,
+            "avg_time": 0.0001853463340861102,
+            "code": "    result = MassFunction(frame=mass.frame)"
+          },
+          {
+            "line": 56,
+            "hits": 1200,
+            "total_time": 0.02696050307713449,
+            "avg_time": 2.2467085897612076e-05,
+            "code": "    for h, m in mass.items():"
+          },
+          {
+            "line": 60,
+            "hits": 900,
+            "total_time": 0.019491704180836678,
+            "avg_time": 2.165744908981853e-05,
+            "code": "            result[h] = reliability * m"
+          },
+          {
+            "line": 57,
+            "hits": 900,
+            "total_time": 0.01925209432374686,
+            "avg_time": 2.139121591527429e-05,
+            "code": "        if h == theta:  # Universal set"
+          },
+          {
+            "line": 47,
+            "hits": 300,
+            "total_time": 0.007037798990495503,
+            "avg_time": 2.345932996831834e-05,
+            "code": "        theta = frozenset(mass.frame.elements)"
+          },
+          {
+            "line": 62,
+            "hits": 300,
+            "total_time": 0.006704098079353571,
+            "avg_time": 2.2346993597845238e-05,
+            "code": "    return result"
+          },
+          {
+            "line": 24,
+            "hits": 300,
+            "total_time": 0.006362601649016142,
+            "avg_time": 2.120867216338714e-05,
+            "code": "    if not 0 <= reliability <= 1:"
+          },
+          {
+            "line": 46,
+            "hits": 300,
+            "total_time": 0.006291400408372283,
+            "avg_time": 2.0971334694574277e-05,
+            "code": "    if mass.frame is not None:"
+          },
+          {
+            "line": 30,
+            "hits": 300,
+            "total_time": 0.006121200160123408,
+            "avg_time": 2.0404000533744693e-05,
+            "code": "    if reliability == 0:"
+          },
+          {
+            "line": 27,
+            "hits": 300,
+            "total_time": 0.00607069896068424,
+            "avg_time": 2.02356632022808e-05,
+            "code": "    if reliability == 1:"
+          },
+          {
+            "line": 9,
+            "hits": 300,
+            "total_time": 0.004749999148771167,
+            "avg_time": 1.583333049590389e-05,
+            "code": "def discount(mass, reliability):"
+          }
+        ]
+      },
+      "<frozen importlib._bootstrap>": {
+        "total_time": 0.0467527995351702,
+        "lines": [
+          {
+            "line": 1400,
+            "hits": 400,
+            "total_time": 0.00949430197943002,
+            "avg_time": 2.373575494857505e-05,
+            "code": ""
+          },
+          {
+            "line": 649,
+            "hits": 200,
+            "total_time": 0.005845199688337743,
+            "avg_time": 2.9225998441688717e-05,
+            "code": ""
+          },
+          {
+            "line": 1412,
+            "hits": 200,
+            "total_time": 0.005188699346035719,
+            "avg_time": 2.5943496730178595e-05,
+            "code": ""
+          },
+          {
+            "line": 1401,
+            "hits": 200,
+            "total_time": 0.00505329854786396,
+            "avg_time": 2.52664927393198e-05,
+            "code": ""
+          },
+          {
+            "line": 1424,
+            "hits": 200,
+            "total_time": 0.004929999355226755,
+            "avg_time": 2.4649996776133774e-05,
+            "code": ""
+          },
+          {
+            "line": 648,
+            "hits": 200,
+            "total_time": 0.004680400830693543,
+            "avg_time": 2.3402004153467715e-05,
+            "code": ""
+          },
+          {
+            "line": 1408,
+            "hits": 200,
+            "total_time": 0.004632601165212691,
+            "avg_time": 2.3163005826063453e-05,
+            "code": ""
+          },
+          {
+            "line": 645,
+            "hits": 200,
+            "total_time": 0.0034790998324751854,
+            "avg_time": 1.739549916237593e-05,
+            "code": ""
+          },
+          {
+            "line": 1390,
+            "hits": 200,
+            "total_time": 0.003449198789894581,
+            "avg_time": 1.7245993949472903e-05,
+            "code": ""
+          }
+        ]
+      },
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\combination\\basic.py": {
+        "total_time": 1.0016874996945262,
+        "lines": [
+          {
+            "line": 73,
+            "hits": 200,
+            "total_time": 0.3672904003178701,
+            "avg_time": 0.0018364520015893503,
+            "code": "    combined = MassFunction(result, frame=frame)"
+          },
+          {
+            "line": 77,
+            "hits": 200,
+            "total_time": 0.12818389851599932,
+            "avg_time": 0.0006409194925799965,
+            "code": "        combined.normalize()"
+          },
+          {
+            "line": 65,
+            "hits": 5500,
+            "total_time": 0.1262416944373399,
+            "avg_time": 2.295303535224362e-05,
+            "code": "        for h2, v2 in m2.items():"
+          },
+          {
+            "line": 66,
+            "hits": 4400,
+            "total_time": 0.12131200253497809,
+            "avg_time": 2.7570909667040474e-05,
+            "code": "            h = h1.intersection(h2)"
+          },
+          {
+            "line": 67,
+            "hits": 4400,
+            "total_time": 0.09626960242167115,
+            "avg_time": 2.1879455095834354e-05,
+            "code": "            if h in result:"
+          },
+          {
+            "line": 68,
+            "hits": 2500,
+            "total_time": 0.0561865990748629,
+            "avg_time": 2.247463962994516e-05,
+            "code": "                result[h] += v1 * v2"
+          },
+          {
+            "line": 70,
+            "hits": 1900,
+            "total_time": 0.04326969967223704,
+            "avg_time": 2.2773526143282653e-05,
+            "code": "                result[h] = v1 * v2"
+          },
+          {
+            "line": 64,
+            "hits": 1300,
+            "total_time": 0.02987160172779113,
+            "avg_time": 2.2978155175223947e-05,
+            "code": "    for h1, v1 in m1.items():"
+          },
+          {
+            "line": 49,
+            "hits": 200,
+            "total_time": 0.0043918994488194585,
+            "avg_time": 2.195949724409729e-05,
+            "code": "        if m1.frame.elements != m2.frame.elements:"
+          },
+          {
+            "line": 48,
+            "hits": 200,
+            "total_time": 0.00435230100993067,
+            "avg_time": 2.176150504965335e-05,
+            "code": "    if m1.frame is not None and m2.frame is not None:"
+          },
+          {
+            "line": 79,
+            "hits": 200,
+            "total_time": 0.004302399815060198,
+            "avg_time": 2.1511999075300992e-05,
+            "code": "    return combined"
+          },
+          {
+            "line": 76,
+            "hits": 200,
+            "total_time": 0.004273100639693439,
+            "avg_time": 2.1365503198467194e-05,
+            "code": "    if normalization:"
+          },
+          {
+            "line": 61,
+            "hits": 200,
+            "total_time": 0.004235900123603642,
+            "avg_time": 2.117950061801821e-05,
+            "code": "    result = {}"
+          },
+          {
+            "line": 54,
+            "hits": 200,
+            "total_time": 0.004153500194661319,
+            "avg_time": 2.0767500973306597e-05,
+            "code": "        frame = m1.frame"
+          },
+          {
+            "line": 53,
+            "hits": 200,
+            "total_time": 0.004122799844481051,
+            "avg_time": 2.0613999222405255e-05,
+            "code": "    if m1.frame is not None:"
+          },
+          {
+            "line": 18,
+            "hits": 200,
+            "total_time": 0.0032300999155268073,
+            "avg_time": 1.6150499577634035e-05,
+            "code": "def combine_conjunctive(m1, m2, normalization=True):"
+          }
+        ]
+      },
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\profiling\\composite_profiler.py": {
+        "total_time": 0.8399458000203595,
+        "lines": [
+          {
+            "line": 85,
+            "hits": 2,
+            "total_time": 0.8398011999670416,
+            "avg_time": 0.4199005999835208,
+            "code": "                result = profiler.stop()"
+          },
+          {
+            "line": 83,
+            "hits": 3,
+            "total_time": 4.870002157986164e-05,
+            "avg_time": 1.6233340526620548e-05,
+            "code": "        for name, profiler in self.profilers.items():"
+          },
+          {
+            "line": 84,
+            "hits": 3,
+            "total_time": 3.9899954572319984e-05,
+            "avg_time": 1.3299984857439995e-05,
+            "code": "            if profiler.enabled:"
+          },
+          {
+            "line": 86,
+            "hits": 2,
+            "total_time": 2.1400046534836292e-05,
+            "avg_time": 1.0700023267418146e-05,
+            "code": "                all_results[name] = result"
+          },
+          {
+            "line": 81,
+            "hits": 1,
+            "total_time": 2.0999927073717117e-05,
+            "avg_time": 2.0999927073717117e-05,
+            "code": "        all_results = {}"
+          },
+          {
+            "line": 79,
+            "hits": 1,
+            "total_time": 1.3600103557109833e-05,
+            "avg_time": 1.3600103557109833e-05,
+            "code": "    def stop_all(self) -> CompositeProfileResult:"
+          }
+        ]
+      },
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\profiling\\core\\base_profiler.py": {
+        "total_time": 0.83975619985722,
+        "lines": [
+          {
+            "line": 72,
+            "hits": 2,
+            "total_time": 0.8387977001257241,
+            "avg_time": 0.41939885006286204,
+            "code": "        profiler_data = self._on_stop()"
+          },
+          {
+            "line": 76,
+            "hits": 2,
+            "total_time": 0.00035069999285042286,
+            "avg_time": 0.00017534999642521143,
+            "code": "            data=profiler_data,"
+          },
+          {
+            "line": 75,
+            "hits": 4,
+            "total_time": 0.0002302998909726739,
+            "avg_time": 5.757497274316847e-05,
+            "code": "        self.results = ProfileResult("
+          },
+          {
+            "line": 65,
+            "hits": 3,
+            "total_time": 4.20999713242054e-05,
+            "avg_time": 1.4033323774735132e-05,
+            "code": "        if self.state != ProfilerState.RUNNING:"
+          },
+          {
+            "line": 68,
+            "hits": 3,
+            "total_time": 4.10998472943902e-05,
+            "avg_time": 1.3699949098130068e-05,
+            "code": "        end_time = time.perf_counter()"
+          },
+          {
+            "line": 69,
+            "hits": 3,
+            "total_time": 4.060007631778717e-05,
+            "avg_time": 1.3533358772595724e-05,
+            "code": "        duration = end_time - (self.start_time or end_time)"
+          },
+          {
+            "line": 62,
+            "hits": 3,
+            "total_time": 4.0599959902465343e-05,
+            "avg_time": 1.3533319967488447e-05,
+            "code": "        if not self.enabled:"
+          },
+          {
+            "line": 60,
+            "hits": 3,
+            "total_time": 3.060000017285347e-05,
+            "avg_time": 1.0200000057617823e-05,
+            "code": "    def stop(self) -> ProfileResult:"
+          },
+          {
+            "line": 78,
+            "hits": 2,
+            "total_time": 2.780009526759386e-05,
+            "avg_time": 1.390004763379693e-05,
+            "code": "                'profiler_name': self.name,"
+          },
+          {
+            "line": 77,
+            "hits": 2,
+            "total_time": 2.3700064048171043e-05,
+            "avg_time": 1.1850032024085522e-05,
+            "code": "            metadata={"
+          },
+          {
+            "line": 83,
+            "hits": 2,
+            "total_time": 2.3099943064153194e-05,
+            "avg_time": 1.1549971532076597e-05,
+            "code": "            duration_seconds=duration"
+          },
+          {
+            "line": 80,
+            "hits": 2,
+            "total_time": 2.22999369725585e-05,
+            "avg_time": 1.114996848627925e-05,
+            "code": "                'start_time': self.start_time,"
+          },
+          {
+            "line": 79,
+            "hits": 2,
+            "total_time": 2.2099935449659824e-05,
+            "avg_time": 1.1049967724829912e-05,
+            "code": "                'duration_seconds': duration,"
+          },
+          {
+            "line": 81,
+            "hits": 2,
+            "total_time": 2.1900050342082977e-05,
+            "avg_time": 1.0950025171041489e-05,
+            "code": "                'end_time': end_time,"
+          },
+          {
+            "line": 86,
+            "hits": 2,
+            "total_time": 2.1499930880963802e-05,
+            "avg_time": 1.0749965440481901e-05,
+            "code": "        self.state = ProfilerState.STOPPED"
+          },
+          {
+            "line": 87,
+            "hits": 2,
+            "total_time": 2.010003663599491e-05,
+            "avg_time": 1.0050018317997456e-05,
+            "code": "        return self.results"
+          }
+        ]
+      },
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\profiling\\core\\cpu_profiler.py": {
+        "total_time": 0.47288579936139286,
+        "lines": [
+          {
+            "line": 57,
+            "hits": 1,
+            "total_time": 0.14319350000005215,
+            "avg_time": 0.14319350000005215,
+            "code": "        top_functions = self._get_top_functions(stats)"
+          },
+          {
+            "line": 113,
+            "hits": 1,
+            "total_time": 0.055501900031231344,
+            "avg_time": 0.055501900031231344,
+            "code": "        stats_stream.sort_stats(self.sort_by)"
+          },
+          {
+            "line": 112,
+            "hits": 1,
+            "total_time": 0.05308169999625534,
+            "avg_time": 0.05308169999625534,
+            "code": "        stats_stream = pstats.Stats(self.profiler, stream=output)"
+          },
+          {
+            "line": 54,
+            "hits": 1,
+            "total_time": 0.05103650002274662,
+            "avg_time": 0.05103650002274662,
+            "code": "        stats = pstats.Stats(self.profiler)"
+          },
+          {
+            "line": 51,
+            "hits": 1,
+            "total_time": 0.03713779989629984,
+            "avg_time": 0.03713779989629984,
+            "code": "            self.profiler.dump_stats(self.temp_file)"
+          },
+          {
+            "line": 61,
+            "hits": 1,
+            "total_time": 0.025735999923199415,
+            "avg_time": 0.025735999923199415,
+            "code": "        file_stats = self._analyze_by_file(stats_dict)"
+          },
+          {
+            "line": 114,
+            "hits": 1,
+            "total_time": 0.022258599987253547,
+            "avg_time": 0.022258599987253547,
+            "code": "        stats_stream.print_stats(self.limit)"
+          },
+          {
+            "line": 64,
+            "hits": 1,
+            "total_time": 0.017171100014820695,
+            "avg_time": 0.017171100014820695,
+            "code": "        total_stats = self._get_total_stats(stats_dict)"
+          },
+          {
+            "line": 88,
+            "hits": 167,
+            "total_time": 0.007457399740815163,
+            "avg_time": 4.465508826835427e-05,
+            "code": "        total_calls = sum(stat[0] for stat in stats_dict.values())"
+          },
+          {
+            "line": 97,
+            "hits": 4,
+            "total_time": 0.006302099907770753,
+            "avg_time": 0.0015755249769426882,
+            "code": "        total_time = sum("
+          },
+          {
+            "line": 91,
+            "hits": 4,
+            "total_time": 0.006148200016468763,
+            "avg_time": 0.0015370500041171908,
+            "code": "        primitive_calls = sum("
+          },
+          {
+            "line": 98,
+            "hits": 164,
+            "total_time": 0.0028420998714864254,
+            "avg_time": 1.7329877265161132e-05,
+            "code": "            stat[3] if len(stat) > 3 else 0.0"
+          },
+          {
+            "line": 92,
+            "hits": 164,
+            "total_time": 0.0028023000340908766,
+            "avg_time": 1.708719532982242e-05,
+            "code": "            stat[0] - stat[1] if len(stat) > 1 and stat[1] > 0 else stat[0]"
+          },
+          {
+            "line": 136,
+            "hits": 80,
+            "total_time": 0.0019088996341452003,
+            "avg_time": 2.3861245426815004e-05,
+            "code": "                    cumulative_time = float(parts[5])"
+          },
+          {
+            "line": 177,
+            "hits": 82,
+            "total_time": 0.0018117004074156284,
+            "avg_time": 2.2093907407507664e-05,
+            "code": "            func_key_str = f\"{func_name}:{line_num}\""
+          },
+          {
+            "line": 184,
+            "hits": 82,
+            "total_time": 0.001761299674399197,
+            "avg_time": 2.147926432194143e-05,
+            "code": "            file_stats[filename]['functions'][func_key_str]['cumulative_time'] += cumulative_time"
+          },
+          {
+            "line": 179,
+            "hits": 82,
+            "total_time": 0.0016727001639083028,
+            "avg_time": 2.0398782486686618e-05,
+            "code": "                file_stats[filename]['functions'][func_key_str] = {"
+          },
+          {
+            "line": 99,
+            "hits": 84,
+            "total_time": 0.0016676000086590648,
+            "avg_time": 1.9852381055465057e-05,
+            "code": "            for stat in stats_dict.values()"
+          },
+          {
+            "line": 174,
+            "hits": 82,
+            "total_time": 0.0016620996175333858,
+            "avg_time": 2.0269507530894948e-05,
+            "code": "            file_stats[filename]['call_count'] += call_count"
+          },
+          {
+            "line": 185,
+            "hits": 82,
+            "total_time": 0.0016565999248996377,
+            "avg_time": 2.0202438108532167e-05,
+            "code": "            file_stats[filename]['functions'][func_key_str]['call_count'] += call_count"
+          },
+          {
+            "line": 93,
+            "hits": 84,
+            "total_time": 0.00162209989503026,
+            "avg_time": 1.9310713036074524e-05,
+            "code": "            for stat in stats_dict.values()"
+          },
+          {
+            "line": 170,
+            "hits": 82,
+            "total_time": 0.001608999795280397,
+            "avg_time": 1.962194872293167e-05,
+            "code": "            cumulative_time = stat_data[3] if len(stat_data) > 3 else 0.0"
+          },
+          {
+            "line": 159,
+            "hits": 83,
+            "total_time": 0.0016071000136435032,
+            "avg_time": 1.9362650766789196e-05,
+            "code": "        for func_key, stat_data in stats_dict.items():"
+          },
+          {
+            "line": 173,
+            "hits": 82,
+            "total_time": 0.0016012998530641198,
+            "avg_time": 1.9528046988586826e-05,
+            "code": "            file_stats[filename]['total_time'] += cumulative_time"
+          },
+          {
+            "line": 178,
+            "hits": 82,
+            "total_time": 0.001582000171765685,
+            "avg_time": 1.9292685021532744e-05,
+            "code": "            if func_key_str not in file_stats[filename]['functions']:"
+          },
+          {
+            "line": 171,
+            "hits": 82,
+            "total_time": 0.0015789004974067211,
+            "avg_time": 1.9254884114716112e-05,
+            "code": "            call_count = stat_data[0] if len(stat_data) > 0 else 0"
+          },
+          {
+            "line": 162,
+            "hits": 82,
+            "total_time": 0.001574499299749732,
+            "avg_time": 1.9201210972557706e-05,
+            "code": "            if filename not in file_stats:"
+          },
+          {
+            "line": 160,
+            "hits": 82,
+            "total_time": 0.0015668008709326386,
+            "avg_time": 1.9107327694300472e-05,
+            "code": "            filename, line_num, func_name = func_key"
+          },
+          {
+            "line": 180,
+            "hits": 82,
+            "total_time": 0.0015665997052565217,
+            "avg_time": 1.9104874454347825e-05,
+            "code": "                    'cumulative_time': 0.0,"
+          },
+          {
+            "line": 181,
+            "hits": 82,
+            "total_time": 0.0015657999319955707,
+            "avg_time": 1.9095121121897203e-05,
+            "code": "                    'call_count': 0"
+          }
+        ]
+      },
+      "<string>": {
+        "total_time": 9.190011769533157e-05,
+        "lines": [
+          {
+            "line": 3,
+            "hits": 2,
+            "total_time": 2.610008232295513e-05,
+            "avg_time": 1.3050041161477566e-05,
+            "code": ""
+          },
+          {
+            "line": 4,
+            "hits": 2,
+            "total_time": 2.3999949917197227e-05,
+            "avg_time": 1.1999974958598614e-05,
+            "code": ""
+          },
+          {
+            "line": 5,
+            "hits": 2,
+            "total_time": 2.320006024092436e-05,
+            "avg_time": 1.160003012046218e-05,
+            "code": ""
+          },
+          {
+            "line": 2,
+            "hits": 2,
+            "total_time": 1.8600025214254856e-05,
+            "avg_time": 9.300012607127428e-06,
+            "code": ""
+          }
+        ]
+      },
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\profiling\\core\\memory_profiler.py": {
+        "total_time": 0.6110381999751553,
+        "lines": [
+          {
+            "line": 44,
+            "hits": 1,
+            "total_time": 0.5257089999504387,
+            "avg_time": 0.5257089999504387,
+            "code": "        stats = snapshot_end.compare_to(self.snapshot_start, 'lineno')"
+          },
+          {
+            "line": 47,
+            "hits": 1,
+            "total_time": 0.033273300039581954,
+            "avg_time": 0.033273300039581954,
+            "code": "        memory_stats = self._analyze_memory_stats(stats)"
+          },
+          {
+            "line": 78,
+            "hits": 299,
+            "total_time": 0.012364300200715661,
+            "avg_time": 4.135217458433331e-05,
+            "code": "        total_count = sum(stat.count for stat in stats)"
+          },
+          {
+            "line": 77,
+            "hits": 299,
+            "total_time": 0.01214170001912862,
+            "avg_time": 4.060769237166763e-05,
+            "code": "        total_size = sum(stat.size for stat in stats)"
+          },
+          {
+            "line": 117,
+            "hits": 10,
+            "total_time": 0.005044700112193823,
+            "avg_time": 0.0005044700112193823,
+            "code": "            traceback_str = self._format_traceback(stat.traceback)"
+          },
+          {
+            "line": 138,
+            "hits": 20,
+            "total_time": 0.0023118999088183045,
+            "avg_time": 0.00011559499544091522,
+            "code": "        for frame in traceback[:5]:  # Ограничиваем глубину"
+          },
+          {
+            "line": 85,
+            "hits": 20,
+            "total_time": 0.002283100038766861,
+            "avg_time": 0.00011415500193834305,
+            "code": "                frame = traceback[0]"
+          },
+          {
+            "line": 57,
+            "hits": 1,
+            "total_time": 0.0022495000157505274,
+            "avg_time": 0.0022495000157505274,
+            "code": "        tracemalloc.stop()"
+          },
+          {
+            "line": 41,
+            "hits": 1,
+            "total_time": 0.0022268000757321715,
+            "avg_time": 0.0022268000757321715,
+            "code": "        snapshot_end = tracemalloc.take_snapshot()"
+          },
+          {
+            "line": 87,
+            "hits": 20,
+            "total_time": 0.001183000043965876,
+            "avg_time": 5.915000219829381e-05,
+            "code": "                lineno = frame.lineno"
+          },
+          {
+            "line": 84,
+            "hits": 20,
+            "total_time": 0.001178600243292749,
+            "avg_time": 5.893001216463745e-05,
+            "code": "            if traceback:"
+          },
+          {
+            "line": 86,
+            "hits": 20,
+            "total_time": 0.0011611998779699206,
+            "avg_time": 5.805999389849603e-05,
+            "code": "                filename = frame.filename"
+          },
+          {
+            "line": 139,
+            "hits": 10,
+            "total_time": 0.0010631999466568232,
+            "avg_time": 0.00010631999466568232,
+            "code": "            frames.append(f\"{frame.filename}:{frame.lineno}\")"
+          },
+          {
+            "line": 134,
+            "hits": 10,
+            "total_time": 0.0006367000751197338,
+            "avg_time": 6.367000751197338e-05,
+            "code": "        if not traceback:"
+          },
+          {
+            "line": 107,
+            "hits": 20,
+            "total_time": 0.0004256999818608165,
+            "avg_time": 2.1284999093040824e-05,
+            "code": "                if hasattr(stat, 'size_diff'):"
+          },
+          {
+            "line": 82,
+            "hits": 21,
+            "total_time": 0.00041349988896399736,
+            "avg_time": 1.9690470903047492e-05,
+            "code": "        for stat in stats[:self.limit]:  # Ограничиваем количество"
+          },
+          {
+            "line": 96,
+            "hits": 20,
+            "total_time": 0.00040850008372217417,
+            "avg_time": 2.042500418610871e-05,
+            "code": "                file_stats[filename]['total_size'] += stat.size"
+          },
+          {
+            "line": 97,
+            "hits": 20,
+            "total_time": 0.00040419958531856537,
+            "avg_time": 2.0209979265928268e-05,
+            "code": "                file_stats[filename]['total_count'] += stat.count"
+          },
+          {
+            "line": 118,
+            "hits": 20,
+            "total_time": 0.0003993991995230317,
+            "avg_time": 1.9969959976151585e-05,
+            "code": "            top_allocations.append({"
+          },
+          {
+            "line": 100,
+            "hits": 20,
+            "total_time": 0.0003973996499553323,
+            "avg_time": 1.9869982497766615e-05,
+            "code": "                location_info = {"
+          },
+          {
+            "line": 89,
+            "hits": 20,
+            "total_time": 0.00039659999310970306,
+            "avg_time": 1.9829999655485153e-05,
+            "code": "                if filename not in file_stats:"
+          },
+          {
+            "line": 112,
+            "hits": 20,
+            "total_time": 0.00039540010038763285,
+            "avg_time": 1.977000501938164e-05,
+            "code": "                file_stats[filename]['locations'].append(location_info)"
+          },
+          {
+            "line": 109,
+            "hits": 20,
+            "total_time": 0.0003924998454749584,
+            "avg_time": 1.962499227374792e-05,
+            "code": "                if hasattr(stat, 'count_diff'):"
+          },
+          {
+            "line": 102,
+            "hits": 20,
+            "total_time": 0.0003887002822011709,
+            "avg_time": 1.9435014110058546e-05,
+            "code": "                    'size': stat.size,"
+          },
+          {
+            "line": 101,
+            "hits": 20,
+            "total_time": 0.00038870004937052727,
+            "avg_time": 1.9435002468526363e-05,
+            "code": "                    'line': lineno,"
+          },
+          {
+            "line": 108,
+            "hits": 20,
+            "total_time": 0.00038670015055686235,
+            "avg_time": 1.933500752784312e-05,
+            "code": "                    location_info['size_diff'] = stat.size_diff"
+          },
+          {
+            "line": 110,
+            "hits": 20,
+            "total_time": 0.0003850000211969018,
+            "avg_time": 1.925000105984509e-05,
+            "code": "                    location_info['count_diff'] = stat.count_diff"
+          },
+          {
+            "line": 83,
+            "hits": 20,
+            "total_time": 0.0003839998971670866,
+            "avg_time": 1.919999485835433e-05,
+            "code": "            traceback = stat.traceback"
+          },
+          {
+            "line": 103,
+            "hits": 20,
+            "total_time": 0.0003835002426058054,
+            "avg_time": 1.917501213029027e-05,
+            "code": "                    'count': stat.count,"
+          },
+          {
+            "line": 116,
+            "hits": 11,
+            "total_time": 0.00022590020671486855,
+            "avg_time": 2.0536382428624414e-05,
+            "code": "        for stat in stats[:10]:  # Топ-10 аллокаций"
+          }
+        ]
+      },
+      "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\profiling\\core\\line_profiler.py": {
+        "total_time": 2.199900336563587e-06,
+        "lines": [
+          {
+            "line": 115,
+            "hits": 1,
+            "total_time": 2.199900336563587e-06,
+            "avg_time": 2.199900336563587e-06,
+            "code": "    def _on_stop(self) -> Dict[str, Any]:"
+          }
+        ]
+      }
+    },
+    "top_lines": [
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\runners\\profiling_runner.py",
+        "line": 267,
+        "hits": 100,
+        "total_time": 17.079321200493723,
+        "avg_time": 0.17079321200493724,
+        "code": "            result = func(*args, **kwargs)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 155,
+        "hits": 3500,
+        "total_time": 10.466262799804099,
+        "avg_time": 0.002990360799944028,
+        "code": "        return self._MassFunction(self._to_plain_dict(bpa), frame=frame)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 118,
+        "hits": 3200,
+        "total_time": 10.43212969833985,
+        "avg_time": 0.003260040530731203,
+        "code": "            return self._to_mass_function(data[\"bpas\"][0], frame_elements)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\runners\\universal_runner.py",
+        "line": 337,
+        "hits": 1500,
+        "total_time": 6.578511802363209,
+        "avg_time": 0.0043856745349088065,
+        "code": "            plausibility = self.adapter.calculate_plausibility(combined_data, element)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\runners\\universal_runner.py",
+        "line": 336,
+        "hits": 1500,
+        "total_time": 6.481268796138465,
+        "avg_time": 0.00432084586409231,
+        "code": "            belief = self.adapter.calculate_belief(combined_data, element)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 59,
+        "hits": 1600,
+        "total_time": 5.43267500132788,
+        "avg_time": 0.0033954218758299247,
+        "code": "        bpa = self._extract_bpa(data)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 63,
+        "hits": 1600,
+        "total_time": 5.428600199753419,
+        "avg_time": 0.0033928751248458867,
+        "code": "        bpa = self._extract_bpa(data)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 75,
+        "hits": 36000,
+        "total_time": 4.00238981237635,
+        "avg_time": 0.00011117749478823195,
+        "code": "                    self[_convert_to_frozenset(h)] = float(v)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 86,
+        "hits": 3200,
+        "total_time": 2.2348694008542225,
+        "avg_time": 0.0006983966877669445,
+        "code": "                self.normalize()"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\runners\\universal_runner.py",
+        "line": 319,
+        "hits": 100,
+        "total_time": 1.6498241998488083,
+        "avg_time": 0.016498241998488084,
+        "code": "        combined_bpa_str = self.adapter.combine_sources_dempster(discounted_data)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 64,
+        "hits": 1600,
+        "total_time": 1.4930719004478306,
+        "avg_time": 0.0009331699377798941,
+        "code": "        return float(bpa.plausibility(self._event_to_key(event)))"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 60,
+        "hits": 1600,
+        "total_time": 1.395333896158263,
+        "avg_time": 0.0008720836850989144,
+        "code": "        return float(bpa.belief(self._event_to_key(event)))"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 191,
+        "hits": 24500,
+        "total_time": 1.2473200026433915,
+        "avg_time": 5.09110205160568e-05,
+        "code": "        return sum(m for h, m in self.items() if h.intersection(hypothesis))"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 144,
+        "hits": 37900,
+        "total_time": 1.1139436985831708,
+        "avg_time": 2.939165431617865e-05,
+        "code": "            return {frozenset(k): float(v) for k, v in bpa.items()}"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 171,
+        "hits": 22500,
+        "total_time": 1.0942721030442044,
+        "avg_time": 4.863431569085353e-05,
+        "code": "        return sum(m for h, m in self.items() if h.issubset(hypothesis))"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 74,
+        "hits": 200,
+        "total_time": 1.085560100269504,
+        "avg_time": 0.005427800501347519,
+        "code": "            result = result.combine_conjunctive(bpa, normalization=True)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 236,
+        "hits": 200,
+        "total_time": 1.0106196996057406,
+        "avg_time": 0.005053098498028703,
+        "code": "        return combine_conjunctive(self, other, normalization=normalization)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 21,
+        "hits": 39200,
+        "total_time": 0.9278188226744533,
+        "avg_time": 2.366884751720544e-05,
+        "code": "    if isinstance(item, frozenset):"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 73,
+        "hits": 40000,
+        "total_time": 0.9261242721695453,
+        "avg_time": 2.3153106804238634e-05,
+        "code": "            for h, v in masses.items():"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 22,
+        "hits": 39200,
+        "total_time": 0.9039985808776692,
+        "avg_time": 2.306118828769564e-05,
+        "code": "        return item"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 149,
+        "hits": 37100,
+        "total_time": 0.8867284224834293,
+        "avg_time": 2.390103564645362e-05,
+        "code": "        for h in list(self.keys()):"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\profiling\\composite_profiler.py",
+        "line": 85,
+        "hits": 2,
+        "total_time": 0.8398011999670416,
+        "avg_time": 0.4199005999835208,
+        "code": "                result = profiler.stop()"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\profiling\\core\\base_profiler.py",
+        "line": 72,
+        "hits": 2,
+        "total_time": 0.8387977001257241,
+        "avg_time": 0.41939885006286204,
+        "code": "        profiler_data = self._on_stop()"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 123,
+        "hits": 3000,
+        "total_time": 0.8157732008257881,
+        "avg_time": 0.0002719244002752627,
+        "code": "            return self._parse_subset_str(event)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 74,
+        "hits": 36000,
+        "total_time": 0.8133054131176323,
+        "avg_time": 2.2591817031045342e-05,
+        "code": "                if v > 0:  # Only add positive masses"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\runners\\universal_runner.py",
+        "line": 302,
+        "hits": 300,
+        "total_time": 0.8060468006879091,
+        "avg_time": 0.0026868226689596973,
+        "code": "            discounted_list = self.adapter.apply_discounting(source_data, alpha)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 150,
+        "hits": 33700,
+        "total_time": 0.8001587799517438,
+        "avg_time": 2.3743583974829193e-05,
+        "code": "            self[h] /= total"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 130,
+        "hits": 15000,
+        "total_time": 0.73560470121447,
+        "avg_time": 4.9040313414298e-05,
+        "code": "        return frozenset(item.strip() for item in raw.split(\",\") if item.strip())"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 19,
+        "hits": 39200,
+        "total_time": 0.6466031975578517,
+        "avg_time": 1.6494979529537033e-05,
+        "code": "def _convert_to_frozenset(item):"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\profiling\\core\\memory_profiler.py",
+        "line": 44,
+        "hits": 1,
+        "total_time": 0.5257089999504387,
+        "avg_time": 0.5257089999504387,
+        "code": "        stats = snapshot_end.compare_to(self.snapshot_start, 'lineno')"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\runners\\universal_runner.py",
+        "line": 344,
+        "hits": 100,
+        "total_time": 0.44673679978586733,
+        "avg_time": 0.004467367997858673,
+        "code": "        results[\"beliefs\"][omega] = self.adapter.calculate_belief(combined_data, frame_elements)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\runners\\universal_runner.py",
+        "line": 345,
+        "hits": 100,
+        "total_time": 0.44362640066538006,
+        "avg_time": 0.0044362640066538,
+        "code": "        results[\"plausibilities\"][omega] = self.adapter.calculate_plausibility(combined_data, frame_elements)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 68,
+        "hits": 400,
+        "total_time": 0.4202489001909271,
+        "avg_time": 0.0010506222504773177,
+        "code": "        bpas = [self._to_mass_function(bpa, frame_elements) for bpa in data.get(\"bpas\", [])]"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 85,
+        "hits": 4000,
+        "total_time": 0.39752810331992805,
+        "avg_time": 9.938202582998201e-05,
+        "code": "            if not self.is_normalized():"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 83,
+        "hits": 300,
+        "total_time": 0.3754019004991278,
+        "avg_time": 0.0012513396683304261,
+        "code": "            mass_function = self._to_mass_function(bpa, frame_elements)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\combination\\basic.py",
+        "line": 73,
+        "hits": 200,
+        "total_time": 0.3672904003178701,
+        "avg_time": 0.0018364520015893503,
+        "code": "    combined = MassFunction(result, frame=frame)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 66,
+        "hits": 3800,
+        "total_time": 0.3655235971091315,
+        "avg_time": 9.619042029187671e-05,
+        "code": "                self.frame = Frame(frame)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 154,
+        "hits": 300,
+        "total_time": 0.3370175991440192,
+        "avg_time": 0.0011233919971467307,
+        "code": "            return self._MassFunction(self._to_plain_dict(bpa), frame=frame)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 158,
+        "hits": 2600,
+        "total_time": 0.2704809990245849,
+        "avg_time": 0.0001040311534709942,
+        "code": "        return {self._format_subset(set(k)): round(float(v), 10) for k, v in dict(bpa).items()}"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\runners\\universal_runner.py",
+        "line": 312,
+        "hits": 500,
+        "total_time": 0.2370059012901038,
+        "avg_time": 0.0004740118025802076,
+        "code": "        discounted_bpas = [self._convert_string_bpa_to_frozenset(bpa_str)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 84,
+        "hits": 300,
+        "total_time": 0.17754739942029119,
+        "avg_time": 0.000591824664734304,
+        "code": "            discounted_bpa = self._discount(mass_function, reliability)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 170,
+        "hits": 1600,
+        "total_time": 0.17466709902510047,
+        "avg_time": 0.0001091669368906878,
+        "code": "        hypothesis = _convert_to_frozenset(hypothesis)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 190,
+        "hits": 1600,
+        "total_time": 0.17315029713790864,
+        "avg_time": 0.0001082189357111929,
+        "code": "        hypothesis = _convert_to_frozenset(hypothesis)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 98,
+        "hits": 300,
+        "total_time": 0.17115470150019974,
+        "avg_time": 0.0005705156716673325,
+        "code": "            discounted.append(self._format_bpa(discounted_bpa))"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\runners\\universal_runner.py",
+        "line": 320,
+        "hits": 100,
+        "total_time": 0.16369160020258278,
+        "avg_time": 0.0016369160020258278,
+        "code": "        combined_bpa = self._convert_string_bpa_to_frozenset(combined_bpa_str)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\profiling\\core\\cpu_profiler.py",
+        "line": 57,
+        "hits": 1,
+        "total_time": 0.14319350000005215,
+        "avg_time": 0.14319350000005215,
+        "code": "        top_functions = self._get_top_functions(stats)"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\core\\mass_function.py",
+        "line": 128,
+        "hits": 4000,
+        "total_time": 0.12933570088353008,
+        "avg_time": 3.233392522088252e-05,
+        "code": "        return abs(sum(self.values()) - 1.0) < 1e-10"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\combination\\basic.py",
+        "line": 77,
+        "hits": 200,
+        "total_time": 0.12818389851599932,
+        "avg_time": 0.0006409194925799965,
+        "code": "        combined.normalize()"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\external\\dst-py\\src\\dempster_shafer\\combination\\basic.py",
+        "line": 65,
+        "hits": 5500,
+        "total_time": 0.1262416944373399,
+        "avg_time": 2.295303535224362e-05,
+        "code": "        for h2, v2 in m2.items():"
+      },
+      {
+        "filename": "D:\\PROG\\POLITEH\\DS-Theory\\DS-Benchmark\\src\\adapters\\dstpy_adapter.py",
+        "line": 76,
+        "hits": 100,
+        "total_time": 0.12488570029381663,
+        "avg_time": 0.0012488570029381663,
+        "code": "        return self._format_bpa(result)"
+      }
+    ]
+  },
+  "metadata": {
+    "profiler_name": "line",
+    "duration_seconds": 17.92175129998941,
+    "start_time": 603600.5741773,
+    "end_time": 603618.4959286,
+    "raw_profile_mode": "full",
+    "sanitize_paths": false,
+    "step_repeat_count": 100
+  },
+  "_metadata": {
+    "profiler": "line",
+    "test_name": "large_001",
+    "step_name": "step3_discount_dempster",
+    "repeat_count": 100,
+    "saved_at": "2026-02-19T06:46:29.973755"
+  }
+}
