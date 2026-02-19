@@ -15,6 +15,7 @@ DS-Benchmark — проект для сравнения реализаций т�
 - [Интерпретация результатов профилирования (RU)](results/profiling/processed_results/postprocessing_analysis/20260219_074831/analysis_interpretation_ru.md) — ключевой итог проведенного исследования.
 
 ### Навигация по модулям
+- [`docs_pipeline_overview.md`](docs_pipeline_overview.md) — подробное описание реализации пайплайна и архитектуры.
 - [`src/generators/README.md`](src/generators/README.md) — генерация и валидация DASS-данных.
 - [`src/adapters/README.md`](src/adapters/README.md) — адаптерный слой библиотек.
 - [`src/runners/README.md`](src/runners/README.md) — запуск сценариев бенчмарка.
@@ -48,6 +49,7 @@ DS-Benchmark is a benchmarking project for Dempster–Shafer implementations, co
 - [Profiling results interpretation (RU)](results/profiling/processed_results/postprocessing_analysis/20260219_074831/analysis_interpretation_ru.md) — the main deliverable of this study.
 
 ### Module map
+- [`docs_pipeline_overview.md`](docs_pipeline_overview.md) — detailed implementation guide for pipeline and architecture.
 - [`src/generators/README.md`](src/generators/README.md) — DASS data generation and validation.
 - [`src/adapters/README.md`](src/adapters/README.md) — adapter layer for libraries.
 - [`src/runners/README.md`](src/runners/README.md) — benchmark execution flows.
