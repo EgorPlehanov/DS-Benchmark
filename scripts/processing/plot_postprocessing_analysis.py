@@ -289,10 +289,11 @@ def plot_stage_stability(rows: List[dict], out_path: Path) -> None:
 def build_plot_summary(plot_dir: Path, analysis_dir: Path, line_library: str) -> Path:
     summary_path = plot_dir / "plot_summary.md"
     lines = [
-        "# Profiling plots summary",
+        "# Profiling plots summary / Сводка графиков профилирования",
         "",
-        f"Source analysis directory: `{analysis_dir.as_posix()}`",
+        f"Source analysis directory / Исходная директория анализа: `{analysis_dir.as_posix()}`",
         "",
+        "## English",
         "Generated plots:",
         "- `cpu_absolute_heatmap.png` — absolute CPU stage timings (ms).",
         "- `cpu_relative_heatmap.png` — relative CPU speedup vs reference (x).",
@@ -303,8 +304,20 @@ def build_plot_summary(plot_dir: Path, analysis_dir: Path, line_library: str) ->
         "- `line_bottlenecks_library_sorted_by_line.png` — line bottlenecks for selected library sorted by line number.",
         "- `line_timing_grouped_by_library.png` — line timings grouped by libraries for shared top lines.",
         "- `cpu_stability_grouped_bar.png` — stage timing stability (`std/mean`, %).",
+        f"- Line-library focus: `{line_library}`.",
         "",
-        f"Line-library focus: `{line_library}`",
+        "## Русский",
+        "Сформированные графики:",
+        "- `cpu_absolute_heatmap.png` — абсолютные CPU-тайминги по этапам (мс).",
+        "- `cpu_relative_heatmap.png` — относительное ускорение CPU относительно эталона (x).",
+        "- `speedup_grouped_bar.png` — группированный график ускорения по этапам (CPU).",
+        "- `memory_absolute_heatmap.png` — абсолютные пиковые значения памяти по этапам (МБ).",
+        "- `memory_relative_heatmap.png` — относительное потребление памяти к эталону (x).",
+        "- `memory_efficiency_grouped_bar.png` — группированный график эффективности памяти (`ref/lib`).",
+        "- `line_bottlenecks_library_sorted_by_line.png` — узкие места по строкам для выбранной библиотеки, отсортировано по номеру строки.",
+        "- `line_timing_grouped_by_library.png` — сравнение времени по строкам с группировкой по библиотекам.",
+        "- `cpu_stability_grouped_bar.png` — стабильность времени этапов (`std/mean`, %).",
+        f"- Фокус по библиотеке для строк: `{line_library}`.",
     ]
     summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return summary_path
