@@ -13,7 +13,7 @@
 
 ## 2) CPU: производительность по этапам
 
-Данные по CPU рассчитаны на основе **100 повторов выполнения каждого этапа** (`mean_step_repeat_count=100` для всех библиотек в metadata CPU).
+Все данные в этом анализе рассчитаны на основе **100 повторов выполнения каждого этапа** (в сводных таблицах: `mean_step_repeat_count=100` для всех библиотек).
 
 По среднему времени на повтор (`mean_per_repeat_ms`):
 
@@ -70,12 +70,12 @@
 
 ## 7) Графики и как их читать
 
-### 7.1 `cpu_absolute_heatmap.png`
+### 7.1 Абсолютные CPU-тайминги по этапам (`cpu_absolute_heatmap.png`)
 Показывает абсолютные CPU-тайминги по этапам (мс): чем меньше значение, тем лучше. По карте сразу видно доминирование `our` на полном 4-этапном сценарии.
 
 ![CPU absolute heatmap](plots/cpu_absolute_heatmap.png)
 
-### 7.2 `cpu_relative_heatmap.png`
+### 7.2 Относительное ускорение CPU к эталону (`cpu_relative_heatmap.png`)
 Показывает относительное ускорение относительно `our` (`time_ref / time_lib`).
 - `1.0x` — паритет с `our`.
 - `<1.0x` — библиотека медленнее `our`.
@@ -83,17 +83,17 @@
 
 ![CPU relative heatmap](plots/cpu_relative_heatmap.png)
 
-### 7.3 `speedup_grouped_bar.png`
+### 7.3 Сгруппированный график ускорения CPU (`speedup_grouped_bar.png`)
 Тот же относительный speedup по CPU, но в виде сгруппированных столбцов по этапам. Удобно сравнивать библиотеки внутри каждого этапа и видеть «провальные» шаги (например, `dstz` на `step2/step3`).
 
 ![CPU speedup grouped bar](plots/speedup_grouped_bar.png)
 
-### 7.4 `memory_absolute_heatmap.png`
+### 7.4 Абсолютные пиковые значения памяти (`memory_absolute_heatmap.png`)
 Абсолютные пиковые значения памяти по этапам (МБ). Используется для оценки фактического memory footprint каждого решения.
 
 ![Memory absolute heatmap](plots/memory_absolute_heatmap.png)
 
-### 7.5 `memory_relative_heatmap.png`
+### 7.5 Относительное потребление памяти к эталону (`memory_relative_heatmap.png`)
 Относительное потребление памяти к эталону `our` (`lib / ref`).
 - `1.0x` — паритет с `our`.
 - `>1.0x` — библиотека потребляет больше памяти.
@@ -101,17 +101,17 @@
 
 ![Memory relative heatmap](plots/memory_relative_heatmap.png)
 
-### 7.6 `memory_efficiency_grouped_bar.png`
+### 7.6 Сгруппированная эффективность памяти (`memory_efficiency_grouped_bar.png`)
 Памятная эффективность в виде `ref / lib`: чем выше столбец, тем эффективнее библиотека относительно `our` в данном этапе.
 
 ![Memory efficiency grouped bar](plots/memory_efficiency_grouped_bar.png)
 
-### 7.7 `line_bottlenecks_library_sorted_by_line.png`
+### 7.7 Узкие места по строкам для выбранной библиотеки (`line_bottlenecks_library_sorted_by_line.png`)
 Построчные bottlenecks для выбранной библиотеки (в текущем наборе фокус: `our`), сортировка этап → файл → строка. График нужен для поиска первых кандидатов на оптимизацию в коде.
 
 ![Line bottlenecks for selected library](plots/line_bottlenecks_library_sorted_by_line.png)
 
-### 7.8 `line_timing_by_library_subplots.png`
+### 7.8 Подграфики построчных затрат по библиотекам (`line_timing_by_library_subplots.png`)
 Подграфики по всем библиотекам с построчными затратами: удобно сравнивать профиль горячих строк между реализациями и понимать, где именно различаются вычислительные паттерны.
 
 ![Line timings by library](plots/line_timing_by_library_subplots.png)
