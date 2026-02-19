@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.adapters.factory import ADAPTER_REGISTRY
+from src.adapters.factory import ADAPTER_REGISTRY, ALIASES
 
 
 def run_command(cmd: list[str]) -> None:
@@ -33,14 +33,49 @@ def parse_libraries(value: str) -> list[str]:
     if not libraries:
         raise argparse.ArgumentTypeError("Список библиотек не может быть пустым")
 
-    supported = set(ADAPTER_REGISTRY.keys())
-    unknown = [lib for lib in libraries if lib not in supported]
+    resolved: list[str] = []
+    unknown: list[str] = []
+
+    for lib in libraries:
+        normalized = lib.lower()
+        canonical = ALIASES.get(normalized, normalized)
+        if canonical not in ADAPTER_REGISTRY:
+            unknown.append(lib)
+            continue
+        # Для profile_benchmark используем канонический ключ адаптера.
+        resolved.append(canonical)
+
     if unknown:
+        primary_names = sorted(adapter_key_to_results_library(name) for name in ADAPTER_REGISTRY.keys())
+        alias_names = sorted(ALIASES.keys())
         raise argparse.ArgumentTypeError(
-            f"Неизвестные библиотеки: {', '.join(unknown)}. Доступно: {', '.join(sorted(supported))}"
+            f"Неизвестные библиотеки: {', '.join(unknown)}. "
+            f"Доступно: {', '.join(primary_names)}. "
+            f"Алиасы: {', '.join(alias_names)}"
         )
 
-    return libraries
+    return resolved
+
+
+def adapter_key_to_results_library(name: str) -> str:
+    """Преобразует CLI-ключ/алиас адаптера в имя папки результатов."""
+    key = ALIASES.get(name.strip().lower(), name.strip().lower())
+    if key not in ADAPTER_REGISTRY:
+        return name.strip()
+
+    # Папка результатов строится через sanitize имени адаптера в раннере:
+    #  our -> our, dst_py -> dstpy, pyds -> pyds, dstz -> dstz
+    return key.replace("_", "")
+
+
+def resolve_results_libraries(raw_value: str | None, fallback_libraries: list[str]) -> str:
+    """Нормализует список библиотек для compare/analyze до имен папок в results."""
+    if raw_value is None:
+        source = fallback_libraries
+    else:
+        source = [item.strip() for item in raw_value.split(",") if item.strip()]
+
+    return ",".join(adapter_key_to_results_library(item) for item in source)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -53,6 +88,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=sorted(ADAPTER_REGISTRY.keys()),
         help="Список библиотек через запятую. По умолчанию: все базовые библиотеки.",
     )
+
+    # profile_benchmark.py
     parser.add_argument("--tests", default="last", help="Параметр --tests для profile_benchmark.py")
     parser.add_argument(
         "--profiling",
@@ -88,26 +125,78 @@ def build_parser() -> argparse.ArgumentParser:
         default=60,
         help="Пауза между библиотеками в секундах (по умолчанию: 60)",
     )
+
+    # Общие параметры эталона/пропусков
+    parser.add_argument("--reference", default="our", help="Эталонная библиотека для compare/analyze")
+    parser.add_argument("--skip-compare", action="store_true", help="Пропустить compare_profiling_results.py")
+    parser.add_argument("--skip-analyze", action="store_true", help="Пропустить analyze_profiling_postprocessing.py")
+    parser.add_argument("--skip-plot", action="store_true", help="Пропустить plot_postprocessing_analysis.py")
+
+    # compare_profiling_results.py
     parser.add_argument(
-        "--skip-compare",
-        action="store_true",
-        help="Пропустить compare_profiling_results.py",
+        "--compare-base-dir",
+        default=None,
+        help="Параметр --base-dir для compare_profiling_results.py (по умолчанию берется --output-dir)",
     )
     parser.add_argument(
-        "--skip-analyze",
-        action="store_true",
-        help="Пропустить analyze_profiling_postprocessing.py",
+        "--compare-libraries",
+        default=None,
+        help="Параметр --libraries для compare_profiling_results.py (по умолчанию: --libraries пайплайна)",
     )
     parser.add_argument(
-        "--skip-plot",
-        action="store_true",
-        help="Пропустить plot_postprocessing_analysis.py",
+        "--compare-tests",
+        default="all",
+        help="Параметр --tests для compare_profiling_results.py",
     )
     parser.add_argument(
-        "--reference",
-        default="our",
-        help="Эталонная библиотека для compare/analyze",
+        "--compare-show-top-diffs",
+        type=int,
+        default=0,
+        help="Параметр --show-top-diffs для compare_profiling_results.py",
     )
+    parser.add_argument(
+        "--compare-identical-threshold",
+        type=float,
+        default=1e-12,
+        help="Параметр --identical-threshold для compare_profiling_results.py",
+    )
+
+    # analyze_profiling_postprocessing.py
+    parser.add_argument(
+        "--analyze-base-dir",
+        default=None,
+        help="Параметр --base-dir для analyze_profiling_postprocessing.py (по умолчанию берется --output-dir)",
+    )
+    parser.add_argument(
+        "--analyze-libraries",
+        default=None,
+        help="Параметр --libraries для analyze_profiling_postprocessing.py (по умолчанию: --libraries пайплайна)",
+    )
+    parser.add_argument("--analyze-top-lines", type=int, default=5, help="Параметр --top-lines для analyze")
+    parser.add_argument(
+        "--analyze-path-filter",
+        choices=["library_only", "all"],
+        default="library_only",
+        help="Параметр --path-filter для analyze_profiling_postprocessing.py",
+    )
+    parser.add_argument(
+        "--analyze-include-scalene",
+        type=parse_bool,
+        default=False,
+        help="Параметр --include-scalene для analyze_profiling_postprocessing.py (True/False)",
+    )
+
+    # plot_postprocessing_analysis.py
+    parser.add_argument(
+        "--plot-base-dir",
+        default=None,
+        help="Параметр --base-dir для plot_postprocessing_analysis.py (по умолчанию: <analyze-base-dir>/processed_results/postprocessing_analysis)",
+    )
+    parser.add_argument("--plot-analysis-dir", default=None, help="Параметр --analysis-dir для plot")
+    parser.add_argument("--plot-out-dir", default=None, help="Параметр --out-dir для plot")
+    parser.add_argument("--plot-top-lines", type=int, default=20, help="Параметр --top-lines для plot")
+    parser.add_argument("--plot-line-library", default="our", help="Параметр --line-library для plot")
+
     return parser
 
 
@@ -117,6 +206,13 @@ def main() -> int:
 
     python = sys.executable
     total = len(args.libraries)
+    selected_libraries = ",".join(args.libraries)
+    results_reference = adapter_key_to_results_library(args.reference)
+    compare_base_dir = args.compare_base_dir or args.output_dir
+    analyze_base_dir = args.analyze_base_dir or args.output_dir
+    analyze_libraries = resolve_results_libraries(args.analyze_libraries, args.libraries)
+    compare_libraries = resolve_results_libraries(args.compare_libraries, args.libraries)
+    plot_base_dir = args.plot_base_dir or f"{analyze_base_dir}/processed_results/postprocessing_analysis"
 
     print("🚀 Запуск профилирования по библиотекам")
     print("📚 Библиотеки:", ", ".join(args.libraries))
@@ -158,29 +254,55 @@ def main() -> int:
             [
                 python,
                 "scripts/processing/compare_profiling_results.py",
+                "--base-dir",
+                compare_base_dir,
                 "--reference",
-                args.reference,
+                results_reference,
                 "--libraries",
-                ",".join(args.libraries),
+                compare_libraries,
                 "--tests",
-                "all",
+                args.compare_tests,
+                "--show-top-diffs",
+                str(args.compare_show_top_diffs),
+                "--identical-threshold",
+                str(args.compare_identical_threshold),
             ]
         )
 
     if not args.skip_analyze:
-        run_command(
-            [
-                python,
-                "scripts/processing/analyze_profiling_postprocessing.py",
-                "--reference",
-                args.reference,
-                "--libraries",
-                ",".join(args.libraries),
-            ]
-        )
+        analyze_cmd = [
+            python,
+            "scripts/processing/analyze_profiling_postprocessing.py",
+            "--base-dir",
+            analyze_base_dir,
+            "--reference",
+            results_reference,
+            "--libraries",
+            analyze_libraries,
+            "--top-lines",
+            str(args.analyze_top_lines),
+            "--path-filter",
+            args.analyze_path_filter,
+        ]
+        analyze_cmd.append("--include-scalene" if args.analyze_include_scalene else "--no-include-scalene")
+        run_command(analyze_cmd)
 
     if not args.skip_plot:
-        run_command([python, "scripts/processing/plot_postprocessing_analysis.py"])
+        plot_cmd = [
+            python,
+            "scripts/processing/plot_postprocessing_analysis.py",
+            "--base-dir",
+            plot_base_dir,
+            "--top-lines",
+            str(args.plot_top_lines),
+            "--line-library",
+            adapter_key_to_results_library(args.plot_line_library),
+        ]
+        if args.plot_analysis_dir is not None:
+            plot_cmd.extend(["--analysis-dir", args.plot_analysis_dir])
+        if args.plot_out_dir is not None:
+            plot_cmd.extend(["--out-dir", args.plot_out_dir])
+        run_command(plot_cmd)
 
     print("\n✅ Готово: профилирование и постпроцессинг завершены")
     return 0
