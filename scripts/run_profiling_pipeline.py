@@ -33,14 +33,28 @@ def parse_libraries(value: str) -> list[str]:
     if not libraries:
         raise argparse.ArgumentTypeError("Список библиотек не может быть пустым")
 
-    supported = set(ADAPTER_REGISTRY.keys())
-    unknown = [lib for lib in libraries if lib not in supported]
+    resolved: list[str] = []
+    unknown: list[str] = []
+
+    for lib in libraries:
+        normalized = lib.lower()
+        canonical = ALIASES.get(normalized, normalized)
+        if canonical not in ADAPTER_REGISTRY:
+            unknown.append(lib)
+            continue
+        # Для profile_benchmark используем канонический ключ адаптера.
+        resolved.append(canonical)
+
     if unknown:
+        primary_names = sorted(adapter_key_to_results_library(name) for name in ADAPTER_REGISTRY.keys())
+        alias_names = sorted(ALIASES.keys())
         raise argparse.ArgumentTypeError(
-            f"Неизвестные библиотеки: {', '.join(unknown)}. Доступно: {', '.join(sorted(supported))}"
+            f"Неизвестные библиотеки: {', '.join(unknown)}. "
+            f"Доступно: {', '.join(primary_names)}. "
+            f"Алиасы: {', '.join(alias_names)}"
         )
 
-    return libraries
+    return resolved
 
 
 def adapter_key_to_results_library(name: str) -> str:
