@@ -135,8 +135,8 @@ Builds visual plots from already prepared postprocessing artifacts (`stage_timin
 - Generates a CPU stage timing heatmap.
 - Generates grouped speedup bars vs reference library.
 - Generates memory-ratio heatmap vs reference.
-- Generates line bottlenecks chart for selected library (stage colors + full code line labels).
-- Generates per-library subplots for line timings sorted by line number inside each library.
+- Generates line bottlenecks chart for selected library (sorted by stage → file → line; stage colors + full code line labels).
+- Generates per-library subplots for line timings sorted by stage → file → line with code labels.
 - Writes a small `plot_summary.md` index.
 
 **Outputs (default):**
@@ -212,8 +212,8 @@ python scripts/processing/analyze_profiling_postprocessing.py \
 - Строит heatmap по CPU-таймингам этапов.
 - Строит grouped bar по speedup относительно reference.
 - Строит heatmap по отношению памяти к reference.
-- Строит график узких мест по строкам для выбранной библиотеки (цвета этапов + полный текст строки кода).
-- Строит подграфики по библиотекам для line-таймингов с сортировкой строк по номеру внутри каждой библиотеки.
+- Строит график узких мест по строкам для выбранной библиотеки (сортировка: этап → файл → строка; цвета этапов + полный текст строки кода).
+- Строит подграфики по библиотекам для line-таймингов с сортировкой этап → файл → строка и подписями с кодом.
 - Добавляет индекс `plot_summary.md`.
 
 **Артефакты на выходе (по умолчанию):**
