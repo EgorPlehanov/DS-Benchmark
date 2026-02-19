@@ -94,6 +94,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Пропустить compare_profiling_results.py",
     )
     parser.add_argument(
+        "--compare-identical-threshold",
+        type=float,
+        default=1e-12,
+        help="Порог identical для compare_profiling_results.py",
+    )
+    parser.add_argument(
         "--skip-analyze",
         action="store_true",
         help="Пропустить analyze_profiling_postprocessing.py",
@@ -164,6 +170,8 @@ def main() -> int:
                 ",".join(args.libraries),
                 "--tests",
                 "all",
+                "--identical-threshold",
+                str(args.compare_identical_threshold),
             ]
         )
 
