@@ -126,6 +126,44 @@ python scripts/processing/analyze_profiling_postprocessing.py \
 ```
 
 
+#### `plot_postprocessing_analysis.py`
+
+Builds visual plots from already prepared postprocessing artifacts (`stage_timings.csv`, `memory_stage_summary.csv`, `line_bottlenecks.csv`) so that profiling results can be interpreted quickly and unambiguously.
+
+**What it does:**
+- Auto-selects latest analysis folder (or accepts explicit `--analysis-dir`).
+- Generates a CPU stage timing heatmap.
+- Generates grouped speedup bars vs reference library.
+- Generates memory-ratio heatmap vs reference.
+- Generates line bottlenecks chart for selected library (sorted by stage → file → line; stage colors + full code line labels).
+- Generates per-library subplots for line timings sorted by stage → file → line with code labels.
+- Writes a small `plot_summary.md` index.
+
+**Outputs (default):**
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/cpu_absolute_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/cpu_relative_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/speedup_grouped_bar.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_absolute_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_relative_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_efficiency_grouped_bar.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_bottlenecks_library_sorted_by_line.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_timing_by_library_subplots.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/plot_summary.md`
+
+**Typical usage:**
+
+```bash
+python scripts/processing/plot_postprocessing_analysis.py
+```
+
+```bash
+python scripts/processing/plot_postprocessing_analysis.py \
+  --analysis-dir results/profiling/processed_results/postprocessing_analysis/20260219_020406 \
+  --top-lines 15 \
+  --line-library our
+```
+
+
 ---
 
 #### `analyze_profiling_postprocessing.py`
@@ -162,4 +200,42 @@ python scripts/processing/analyze_profiling_postprocessing.py \
   --libraries all \
   --top-lines 5 \
   --path-filter library_only
+```
+
+
+#### `plot_postprocessing_analysis.py`
+
+Строит наглядные графики по уже подготовленным артефактам постобработки (`stage_timings.csv`, `memory_stage_summary.csv`, `line_bottlenecks.csv`), чтобы визуально и однозначно анализировать результаты профилирования.
+
+**Что делает скрипт:**
+- Автоматически берет последний каталог анализа (или использует переданный `--analysis-dir`).
+- Строит heatmap по CPU-таймингам этапов.
+- Строит grouped bar по speedup относительно reference.
+- Строит heatmap по отношению памяти к reference.
+- Строит график узких мест по строкам для выбранной библиотеки (сортировка: этап → файл → строка; цвета этапов + полный текст строки кода).
+- Строит подграфики по библиотекам для line-таймингов с сортировкой этап → файл → строка и подписями с кодом.
+- Добавляет индекс `plot_summary.md`.
+
+**Артефакты на выходе (по умолчанию):**
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/cpu_absolute_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/cpu_relative_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/speedup_grouped_bar.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_absolute_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_relative_heatmap.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/memory_efficiency_grouped_bar.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_bottlenecks_library_sorted_by_line.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/line_timing_by_library_subplots.png`
+- `results/profiling/processed_results/postprocessing_analysis/<timestamp>/plots/plot_summary.md`
+
+**Пример запуска:**
+
+```bash
+python scripts/processing/plot_postprocessing_analysis.py
+```
+
+```bash
+python scripts/processing/plot_postprocessing_analysis.py \
+  --analysis-dir results/profiling/processed_results/postprocessing_analysis/20260219_020406 \
+  --top-lines 15 \
+  --line-library our
 ```
