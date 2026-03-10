@@ -194,7 +194,6 @@ class ProfilingBenchmarkRunner(UniversalBenchmarkRunner):
             base_metrics["step_repeat_count"] = repeat_count
             base_metrics["time_per_repeat_ms"] = execution_time / max(1, repeat_count)
             
-            # ✅ ПРАВИЛЬНАЯ ОБРАБОТКА ОШИБОК
             if 'error' in profile_result.metadata:
                 error_info = profile_result.metadata['error']
                 error_msg = str(error_info.get('error', 'Unknown error')).lower()

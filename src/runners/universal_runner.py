@@ -88,7 +88,7 @@ class UniversalBenchmarkRunner:
         # Инициализация результатов
         test_results = {
             "metadata": {
-                "test_name": test_name,  # ✅ СОХРАНЯЕМ ИМЯ ТЕСТА
+                "test_name": test_name,
                 "adapter": self.adapter_name,
                 "iterations": iterations,
                 "timestamp": datetime.now().isoformat(),
@@ -119,7 +119,7 @@ class UniversalBenchmarkRunner:
                 test_data=test_data,
                 iteration_num=i+1,
                 alphas=alphas,
-                test_name=test_name  # ✅ ПЕРЕДАЕМ ИМЯ ТЕСТА
+                test_name=test_name
             )
             
             test_results["iterations"].append(iteration_results)
@@ -144,7 +144,7 @@ class UniversalBenchmarkRunner:
                          test_data: Dict[str, Any],
                          iteration_num: int,
                          alphas: List[float],
-                         test_name: str = "") -> Dict[str, Any]:  # ✅ ДОБАВЛЯЕМ test_name
+                         test_name: str = "") -> Dict[str, Any]:
         """
         Выполняет одну итерацию теста.
         """
@@ -158,8 +158,8 @@ class UniversalBenchmarkRunner:
             self._execute_step1,
             loaded_data,
             step_name="step1_original",
-            test_name=test_name,           # ✅ ПЕРЕДАЕМ ИМЯ ТЕСТА
-            iteration=iteration_num        # ✅ ПЕРЕДАЕМ НОМЕР ИТЕРАЦИИ
+            test_name=test_name,
+            iteration=iteration_num
         )
         iteration_results["step1"] = step1_results
         iteration_results["performance"]["step1"] = step1_metrics
@@ -169,8 +169,8 @@ class UniversalBenchmarkRunner:
             self._execute_step2,
             loaded_data,
             step_name="step2_dempster",
-            test_name=test_name,           # ✅ ПЕРЕДАЕМ ИМЯ ТЕСТА
-            iteration=iteration_num        # ✅ ПЕРЕДАЕМ НОМЕР ИТЕРАЦИИ
+            test_name=test_name,
+            iteration=iteration_num
         )
         iteration_results["step2"] = step2_results
         iteration_results["performance"]["step2"] = step2_metrics
@@ -181,8 +181,8 @@ class UniversalBenchmarkRunner:
             loaded_data,
             alphas,
             step_name="step3_discount_dempster",
-            test_name=test_name,           # ✅ ПЕРЕДАЕМ ИМЯ ТЕСТА
-            iteration=iteration_num        # ✅ ПЕРЕДАЕМ НОМЕР ИТЕРАЦИИ
+            test_name=test_name,
+            iteration=iteration_num
         )
         iteration_results["step3"] = step3_results
         iteration_results["performance"]["step3"] = step3_metrics
@@ -192,8 +192,8 @@ class UniversalBenchmarkRunner:
             self._execute_step4,
             loaded_data,
             step_name="step4_yager",
-            test_name=test_name,           # ✅ ПЕРЕДАЕМ ИМЯ ТЕСТА
-            iteration=iteration_num        # ✅ ПЕРЕДАЕМ НОМЕР ИТЕРАЦИИ
+            test_name=test_name,
+            iteration=iteration_num
         )
         iteration_results["step4"] = step4_results
         iteration_results["performance"]["step4"] = step4_metrics
