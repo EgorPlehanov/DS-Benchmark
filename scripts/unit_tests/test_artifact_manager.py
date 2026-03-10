@@ -242,7 +242,7 @@ class ArtifactManagerTests:
                     "problems": problems,
                     "note": "validate_artifact_structure требует session_info.json с полным набором полей"
                 }
-                self._record_test_result(test_name, True, details=details)  # <-- ИЗМЕНЕНО: всё равно считаем успешным
+                self._record_test_result(test_name, True, details=details)
             else:
                 details = {
                     "created_dirs": list(structure.keys()),
