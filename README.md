@@ -20,7 +20,6 @@ DS-Benchmark — исследовательский проект для срав
 - **Основной разработчик:** Егор Сергеевич Плеханов, студент магистратуры.
 - **Вторичный разработчик и научный руководитель:** Владимир Андреевич Пархоменко, старший преподаватель.
 - **Аффилиация:** Федеральное государственное автономное образовательное учреждение высшего образования «Санкт-Петербургский политехнический университет Петра Великого», Институт компьютерных наук и кибербезопасности, Санкт-Петербург, Россия.
-- **Процедура внесения правок:** научный руководитель может оперативно вносить изменения, запрошенные рецензентами, без длительных согласований.
 
 ### Отказ от ответственности
 
@@ -85,7 +84,6 @@ DS-Benchmark is a research benchmarking project for Dempster–Shafer implementa
 - **Main developer:** Egor Sergeevich Plekhanov, master’s student.
 - **Secondary developer and supervisor:** Vladimir Andreevich Parkhomenko, senior lecturer.
 - **Affiliation:** Peter the Great St. Petersburg Polytechnic University, Institute of Computer Science and Cybersecurity, Saint Petersburg, Russia.
-- **Change governance:** the supervisor may introduce reviewer-requested changes without long coordination delays.
 
 ### Disclaimer
 
