@@ -1,0 +1,45 @@
+{
+  "metadata": {
+    "description": "Пример 2.7 из книги: дисконтирование",
+    "page": "56-57",
+    "type": "discounting_dempster"
+  },
+  "frame_of_discernment": ["1", "2", "3", "4"],
+  "bba_sources": [
+    {
+      "id": "source1",
+      "reliability": 0.952,
+      "bba": {
+        "{}": 0.0,
+        "{2}": 0.625,
+        "{2,3}": 0.375
+      }
+    },
+    {
+      "id": "source2", 
+      "reliability": 0.048,
+      "bba": {
+        "{}": 0.0,
+        "{1}": 1.0
+      }
+    }
+  ],
+  "discount_factors": [0.048, 0.952],
+  "expected_results": {
+    "discounted_source1": {
+      "{2}": 0.595,
+      "{2,3}": 0.357,
+      "{1,2,3,4}": 0.048
+    },
+    "discounted_source2": {
+      "{1}": 0.048,
+      "{1,2,3,4}": 0.952
+    },
+    "combined_dempster": {
+      "{1}": 0.002,
+      "{2}": 0.594,
+      "{2,3}": 0.356,
+      "{1,2,3,4}": 0.048
+    }
+  }
+}
